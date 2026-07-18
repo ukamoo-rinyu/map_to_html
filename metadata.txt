@@ -2,7 +2,7 @@
 name=Map to HTML
 qgisMinimumVersion=3.16
 description=Publish any number of QGIS layers as a standalone Leaflet/HTML/JS web map, each keeping its own symbology and labels.
-version=0.1.0
+version=0.1.1
 author=rinyu
 email=ukamoo@gmail.com
 
