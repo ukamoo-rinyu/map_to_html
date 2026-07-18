@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- browser window body -->
+  <rect x="4" y="8" width="56" height="48" rx="6" ry="6" fill="#ffffff" stroke="#3b4656" stroke-width="2.5"/>
+  <!-- header bar (rounded top corners only, sits flush on the body) -->
+  <path d="M10,8 H54 A6,6 0 0 1 60,14 V22 H4 V14 A6,6 0 0 1 10,8 Z" fill="#3b4656"/>
+  <!-- window control dots -->
+  <circle cx="12" cy="15" r="1.6" fill="#ffffff" opacity="0.7"/>
+  <circle cx="18" cy="15" r="1.6" fill="#ffffff" opacity="0.7"/>
+  <circle cx="24" cy="15" r="1.6" fill="#ffffff" opacity="0.7"/>
+  <!-- facility location pin -->
+  <path d="M32,28 C25.4,28 20,33.4 20,40 C20,49 32,60 32,60 C32,60 44,49 44,40 C44,33.4 38.6,28 32,28 Z" fill="#e2574c"/>
+  <circle cx="32" cy="40" r="5.5" fill="#ffffff"/>
+</svg>

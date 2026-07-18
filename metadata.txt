@@ -1,0 +1,19 @@
+[general]
+name=Map to HTML
+qgisMinimumVersion=3.16
+description=Publish any number of QGIS layers as a standalone Leaflet/HTML/JS web map, each keeping its own symbology and labels.
+version=0.1.0
+author=rinyu
+email=ukamoo@gmail.com
+
+about=Pick any number of layers from the current QGIS project and export a self-contained web map (HTML + per-layer GeoJSON/style JSON) that runs in any browser without a server, qgis2web-style. Each layer's symbology (marker color/size/shape, line, fill, labels) is extracted from QGIS and carried over as-is, with a toggle panel to show/hide layers. Search/filter across layers is planned for a later iteration.
+
+tags=web,html,export,leaflet,search,facility,geojson
+category=Web
+icon=icon.svg
+homepage=https://github.com/ukamoo-rinyu/map_to_html
+tracker=https://github.com/ukamoo-rinyu/map_to_html/issues
+repository=https://github.com/ukamoo-rinyu/map_to_html
+
+experimental=True
+deprecated=False
