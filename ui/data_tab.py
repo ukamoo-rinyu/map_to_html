@@ -226,7 +226,7 @@ class DataTab(QWidget):
             cell_layout.setContentsMargins(2, 0, 2, 0)
             cell_layout.setAlignment(Qt.AlignCenter)
             btn_fields = QPushButton(self.tr('設定…'))
-            btn_fields.clicked.connect(lambda checked=False, e=entry, l=layer: self._open_field_settings(l, e))
+            btn_fields.clicked.connect(lambda checked=False, e=entry, ly=layer: self._open_field_settings(ly, e))
             cell_layout.addWidget(btn_fields)
             btn_copy = QPushButton(self.tr('→同グループにコピー'))
             btn_copy.setToolTip(self.tr(
@@ -354,7 +354,9 @@ class DataTab(QWidget):
                 'layer': layer,
                 'label': entry['label'] or layer.name(),
                 'default_visible': entry['default_visible'],
-                'field_order': field_config.visible_field_order(entry['field_config']) if entry['field_config'] else None,
+                'field_order': (
+                    field_config.visible_field_order(entry['field_config']) if entry['field_config'] else None
+                ),
             })
         return result
 

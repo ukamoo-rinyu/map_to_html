@@ -40,6 +40,7 @@ def _to_px(value, unit, fallback):
 def _clamp(value, lo, hi):
     return max(lo, min(hi, value))
 
+
 # QGIS shape names -> the small shape vocabulary the Leaflet template understands.
 SHAPE_NAME_MAP = {
     'circle': 'circle',
