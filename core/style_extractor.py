@@ -12,8 +12,19 @@ from qgis.core import (
     QgsRenderContext, QgsWkbTypes,
     QgsSimpleMarkerSymbolLayerBase, QgsVectorLayerSimpleLabeling,
     QgsExpression, QgsExpressionContext, QgsExpressionContextUtils,
-    QgsUnitTypes,
+    QgsUnitTypes, QgsMessageLog, Qgis,
 )
+
+
+def _log_extract_warning(context, exc):
+    """One style property couldn't be read (typically a symbol-layer
+    method this QGIS version/symbol type doesn't expose) - the caller
+    already has a sensible default in `style` for it, so export keeps
+    going rather than aborting the whole layer, but the failure is
+    still surfaced in QGIS's own message log instead of being silently
+    discarded."""
+    QgsMessageLog.logMessage(f'{context}: {exc}', 'Map to HTML', Qgis.Warning)
+
 
 # 96 dpi conversions - only units with a fixed physical size can be
 # converted without knowing the current render scale.
@@ -77,28 +88,29 @@ def _extract_marker_style(symbol):
         color = symbol.color()
         if color is not None:
             style['color'] = color.name()
-    except Exception:
-        pass
+    except Exception as exc:
+        _log_extract_warning('marker color', exc)
     try:
         size_px = _to_px(float(symbol.size()), symbol.sizeUnit(), DEFAULT_MARKER['size'])
         style['size'] = round(_clamp(size_px, 2, 40), 1)
-    except Exception:
-        pass
+    except Exception as exc:
+        _log_extract_warning('marker size', exc)
     try:
         style['opacity'] = round(float(symbol.opacity()), 2)
-    except Exception:
-        pass
+    except Exception as exc:
+        _log_extract_warning('marker opacity', exc)
     try:
         symbol_layer = symbol.symbolLayer(0)
-    except Exception:
+    except Exception as exc:
+        _log_extract_warning('marker symbol layer', exc)
         symbol_layer = None
 
     if symbol_layer is not None and hasattr(symbol_layer, 'shape'):
         try:
             shape_name = QgsSimpleMarkerSymbolLayerBase.encodeShape(symbol_layer.shape())
             style['shape'] = SHAPE_NAME_MAP.get(shape_name, 'circle')
-        except Exception:
-            pass
+        except Exception as exc:
+            _log_extract_warning('marker shape', exc)
 
     if symbol_layer is not None and hasattr(symbol_layer, 'strokeColor'):
         # Simple marker symbol layers keep fill and stroke as separate
@@ -109,8 +121,8 @@ def _extract_marker_style(symbol):
             stroke_color = symbol_layer.strokeColor()
             if stroke_color is not None:
                 style['strokeColor'] = stroke_color.name()
-        except Exception:
-            pass
+        except Exception as exc:
+            _log_extract_warning('marker stroke color', exc)
         try:
             width_unit = (
                 symbol_layer.strokeWidthUnit()
@@ -118,13 +130,13 @@ def _extract_marker_style(symbol):
             )
             width_px = _to_px(float(symbol_layer.strokeWidth()), width_unit, DEFAULT_MARKER['strokeWidth'])
             style['strokeWidth'] = round(_clamp(width_px, 0, 10), 2)
-        except Exception:
-            pass
+        except Exception as exc:
+            _log_extract_warning('marker stroke width', exc)
         try:
             if int(symbol_layer.strokeStyle()) == 0:  # Qt.NoPen == 0 across Qt versions
                 style['strokeWidth'] = 0
-        except Exception:
-            pass
+        except Exception as exc:
+            _log_extract_warning('marker stroke style', exc)
 
     return style
 
@@ -138,20 +150,20 @@ def _extract_line_style(symbol):
         color = symbol.color()
         if color is not None:
             style['color'] = color.name()
-    except Exception:
-        pass
+    except Exception as exc:
+        _log_extract_warning('line color', exc)
     try:
         width_unit = symbol.widthUnit() if hasattr(symbol, 'widthUnit') else QgsUnitTypes.RenderMillimeters
         width_px = _to_px(float(symbol.width()), width_unit, DEFAULT_LINE['width'])
         style['width'] = round(_clamp(width_px, 0.5, 20), 2)
-    except Exception:
-        pass
+    except Exception as exc:
+        _log_extract_warning('line width', exc)
     try:
         symbol_layer = symbol.symbolLayer(0)
         if symbol_layer is not None and hasattr(symbol_layer, 'penStyle'):
             style['dashed'] = int(symbol_layer.penStyle()) != 1  # Qt.SolidLine == 1 across Qt versions
-    except Exception:
-        pass
+    except Exception as exc:
+        _log_extract_warning('line dash style', exc)
     return style
 
 
@@ -173,7 +185,8 @@ def _extract_fill_style(symbol):
         return style
     try:
         symbol_layer = symbol.symbolLayer(0)
-    except Exception:
+    except Exception as exc:
+        _log_extract_warning('fill symbol layer', exc)
         symbol_layer = None
 
     if symbol_layer is not None and hasattr(symbol_layer, 'brushStyle'):
@@ -183,19 +196,19 @@ def _extract_fill_style(symbol):
             if color is not None:
                 style['fillColor'] = color.name()
                 style['fillOpacity'] = round(color.alphaF(), 2)
-        except Exception:
-            pass
+        except Exception as exc:
+            _log_extract_warning('fill color', exc)
         try:
             if int(symbol_layer.brushStyle()) == 0:  # Qt.NoBrush == 0 across Qt versions
                 style['fillOpacity'] = 0
-        except Exception:
-            pass
+        except Exception as exc:
+            _log_extract_warning('fill brush style', exc)
         try:
             stroke_color = symbol_layer.strokeColor()
             if stroke_color is not None:
                 style['strokeColor'] = stroke_color.name()
-        except Exception:
-            pass
+        except Exception as exc:
+            _log_extract_warning('fill stroke color', exc)
         try:
             width_unit = (
                 symbol_layer.strokeWidthUnit()
@@ -203,13 +216,13 @@ def _extract_fill_style(symbol):
             )
             width_px = _to_px(float(symbol_layer.strokeWidth()), width_unit, DEFAULT_FILL['strokeWidth'])
             style['strokeWidth'] = round(_clamp(width_px, 0.5, 20), 2)
-        except Exception:
-            pass
+        except Exception as exc:
+            _log_extract_warning('fill stroke width', exc)
         try:
             if int(symbol_layer.strokeStyle()) == 0:  # Qt.NoPen == 0
                 style['strokeWidth'] = 0
-        except Exception:
-            pass
+        except Exception as exc:
+            _log_extract_warning('fill stroke style', exc)
 
     elif symbol_layer is not None and hasattr(symbol_layer, 'color'):
         # Outline-only polygon: the sole symbol layer is a line layer.
@@ -219,8 +232,8 @@ def _extract_fill_style(symbol):
             color = symbol_layer.color()
             if color is not None:
                 style['strokeColor'] = color.name()
-        except Exception:
-            pass
+        except Exception as exc:
+            _log_extract_warning('outline color', exc)
         try:
             width_unit = (
                 symbol_layer.widthUnit()
@@ -228,8 +241,8 @@ def _extract_fill_style(symbol):
             )
             width_px = _to_px(float(symbol_layer.width()), width_unit, DEFAULT_FILL['strokeWidth'])
             style['strokeWidth'] = round(_clamp(width_px, 0.5, 20), 2)
-        except Exception:
-            pass
+        except Exception as exc:
+            _log_extract_warning('outline width', exc)
 
     return style
 
@@ -252,8 +265,8 @@ def _extract_label_style(layer):
         raw_size = fmt.size() if fmt.size() else font.pointSize()
         size_px = _to_px(float(raw_size), fmt.sizeUnit(), DEFAULT_LABEL['fontSize'])
         style['fontSize'] = round(_clamp(size_px, 6, 60), 1)
-    except Exception:
-        pass
+    except Exception as exc:
+        _log_extract_warning('label font size', exc)
     style['bold'] = bool(font.bold())
 
     color = fmt.color()
