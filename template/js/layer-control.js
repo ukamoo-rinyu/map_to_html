@@ -86,6 +86,21 @@ function renderLayerTree(node, containerEl, map) {
    like on the map). Uses the layer's defaultStyle only - a
    categorized layer's per-category colors aren't broken out here,
    just its fallback style. */
+/* A fully opaque swatch background would misrepresent a semi-transparent
+   fill, and would show a solid block for an outline-only polygon
+   (fillOpacity 0) as if it had a real fill - so the swatch's background
+   must carry the same opacity the map itself uses, not just its color. */
+function hexToRgba(hex, opacity) {
+  if (!hex) return 'transparent';
+  var h = hex.replace('#', '');
+  if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+  var r = parseInt(h.substring(0, 2), 16);
+  var g = parseInt(h.substring(2, 4), 16);
+  var b = parseInt(h.substring(4, 6), 16);
+  var a = (opacity === undefined || opacity === null) ? 1 : opacity;
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+}
+
 function buildLegendSwatchHtml(style) {
   if (!style) return '';
   if (style.marker) {
@@ -93,14 +108,14 @@ function buildLegendSwatchHtml(style) {
     var strokeColor = m.strokeColor || m.color;
     var strokeWidth = (m.strokeWidth === undefined || m.strokeWidth === null) ? 1 : m.strokeWidth;
     var shapeClass = (!m.shape || m.shape === 'circle') ? 'fag-legend-circle' : 'fag-legend-box';
-    return '<span class="fag-legend-swatch ' + shapeClass + '" style="background:' + m.color +
+    return '<span class="fag-legend-swatch ' + shapeClass + '" style="background:' + hexToRgba(m.color, m.opacity) +
       ';border:' + strokeWidth + 'px solid ' + strokeColor + ';"></span>';
   }
   if (style.line) {
     return '<span class="fag-legend-swatch fag-legend-line" style="background:' + style.line.color + ';"></span>';
   }
   if (style.fill) {
-    return '<span class="fag-legend-swatch fag-legend-box" style="background:' + style.fill.fillColor +
+    return '<span class="fag-legend-swatch fag-legend-box" style="background:' + hexToRgba(style.fill.fillColor, style.fill.fillOpacity) +
       ';border:' + style.fill.strokeWidth + 'px solid ' + style.fill.strokeColor + ';"></span>';
   }
   if (style.tile) {
