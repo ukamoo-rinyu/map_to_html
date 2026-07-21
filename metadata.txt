@@ -15,5 +15,5 @@ homepage=https://github.com/ukamoo-rinyu/map_to_html
 tracker=https://github.com/ukamoo-rinyu/map_to_html/issues
 repository=https://github.com/ukamoo-rinyu/map_to_html
 
-experimental=True
+experimental=False
 deprecated=False
