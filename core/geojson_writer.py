@@ -10,6 +10,17 @@ from qgis.core import (
 
 AUTO_ID_FIELD = '_fid'
 
+# A boundary/reference-line layer can carry far more vertices than a web
+# map needs at any zoom a facility map is actually viewed at - a real
+# ward-boundary layer measured here averaged ~330 vertices per feature
+# (12,744 across 39 features). Leaflet reprojects and redraws every one
+# of those on every pan/zoom, and at that density it was a measurable
+# contributor to the whole map feeling heavy (spec feedback: "激重い").
+# ~2m (in WGS84 degrees, applied post-transform so it's independent of
+# the source layer's own CRS/units) is imperceptible at any zoom level
+# facility markers are actually legible at.
+SIMPLIFY_TOLERANCE_DEG = 0.00002
+
 
 def write_sites_geojson(layer, output_path, label_text_evaluator, id_field=None, field_order=None):
     """Write `layer`'s features to a WGS84 (EPSG:4326) GeoJSON, adding a
@@ -57,6 +68,9 @@ def write_sites_geojson(layer, output_path, label_text_evaluator, id_field=None,
     mem_layer.dataProvider().addAttributes(out_fields)
     mem_layer.updateFields()
 
+    geom_type = QgsWkbTypes.geometryType(layer.wkbType())
+    simplify_geometry = geom_type in (QgsWkbTypes.LineGeometry, QgsWkbTypes.PolygonGeometry)
+
     source_field_names = field_order
     new_features = []
     for index, feature in enumerate(layer.getFeatures()):
@@ -65,6 +79,10 @@ def write_sites_geojson(layer, output_path, label_text_evaluator, id_field=None,
         if geom is not None and not geom.isEmpty():
             geom = QgsGeometry(geom)
             geom.transform(transform)
+            if simplify_geometry:
+                simplified = geom.simplify(SIMPLIFY_TOLERANCE_DEG)
+                if simplified is not None and not simplified.isEmpty():
+                    geom = simplified
         new_feature.setGeometry(geom)
         for field_name in source_field_names:
             new_feature[field_name] = feature[field_name]

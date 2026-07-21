@@ -29,7 +29,7 @@ class OutputTab(QWidget):
 
         form = QFormLayout()
         self.le_title = QLineEdit()
-        self.le_title.setPlaceholderText(self.tr('例: ○○市 公共施設検索システム'))
+        self.le_title.setPlaceholderText(self.tr('例: ○○マップ'))
         form.addRow(self.tr('タイトル:'), self.le_title)
         root.addLayout(form)
 

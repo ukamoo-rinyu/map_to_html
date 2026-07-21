@@ -103,16 +103,29 @@ html, body {
 .fag-marker-icon { background: transparent; border: none; }
 .fag-shape-square { display: block; }
 .fag-shape-diamond { display: block; transform: rotate(45deg); }
+/* clip-path (not the CSS border-triangle trick) so the marker's own
+   fill color from QGIS applies via the span's background, same as
+   every other shape - the border trick hardcoded the triangle to the
+   accent color and ignored the symbol's real color entirely. */
 .fag-shape-triangle {
-  width: 0 !important;
-  height: 0 !important;
-  background: transparent !important;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-bottom: 10px solid var(--accent-color);
+  display: block;
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
 }
-.fag-shape-cross { display: block; }
-.fag-shape-star { display: block; border-radius: 50%; }
+/* clip-path traces the actual shape outline - without it these two
+   just rendered as a plain background rectangle/circle regardless of
+   the QGIS symbol (spec feedback: a star symbol came out as a plain
+   dot). Percentages are relative to the span's own width/height, which
+   createStyledMarker already sets to the marker's px size. */
+.fag-shape-cross {
+  display: block;
+  clip-path: polygon(35% 0%, 65% 0%, 65% 35%, 100% 35%, 100% 65%, 65% 65%,
+    65% 100%, 35% 100%, 35% 65%, 0% 65%, 0% 35%, 35% 35%);
+}
+.fag-shape-star {
+  display: block;
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%,
+    21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
 
 /* ---- Hover highlight (spec feedback, qgis2web-style) - only
    non-circle marker shapes need this; circleMarker/line/polygon
@@ -137,9 +150,33 @@ html, body {
   font-size: 12px;
 }
 
+/* ---- Collapsible layer panel (spec feedback: on a phone the panel
+   can cover a large part of the small map) ---- */
+#layer-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+#layer-panel-header #layer-panel-title { margin-bottom: 0; }
+#layer-panel-toggle {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 6px 8px;
+  color: var(--muted-color);
+  transition: transform 0.15s ease;
+}
+#layer-panel.fag-collapsed { max-height: none; overflow-y: visible; }
+#layer-panel.fag-collapsed #layer-panel-toggle { transform: rotate(-90deg); }
+#layer-panel.fag-collapsed #layer-panel-list { display: none; }
+
 #layer-panel-title {
   font-weight: 700;
-  margin-bottom: 4px;
   color: var(--muted-color);
 }
 
@@ -176,6 +213,19 @@ html, body {
 .fag-legend-circle { border-radius: 50%; }
 .fag-legend-box { border-radius: 2px; }
 .fag-legend-line { height: 3px; align-self: center; border-radius: 2px; }
+/* Non-circle marker shapes, matching the map's own .fag-shape-* rendering
+   (same clip-path polygons / rotation, fill-only with no border) so the
+   legend shows the actual symbol shape, not a generic box. */
+.fag-legend-diamond { transform: rotate(45deg) scale(0.82); border-radius: 1px; }
+.fag-legend-triangle { clip-path: polygon(50% 0%, 100% 100%, 0% 100%); }
+.fag-legend-star {
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%,
+    21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
+.fag-legend-cross {
+  clip-path: polygon(35% 0%, 65% 0%, 65% 35%, 100% 35%, 100% 65%, 65% 65%,
+    65% 100%, 35% 100%, 35% 65%, 0% 65%, 0% 35%, 35% 35%);
+}
 .fag-legend-tile {
   border-radius: 2px;
   background-image:

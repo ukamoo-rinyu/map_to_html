@@ -115,16 +115,19 @@ class DisplayTab(QWidget):
         lay_basemap.addWidget(self.cb_basemap, 1)
         root.addWidget(grp_basemap)
 
-        grp_popup = QGroupBox(self.tr('ポップアップ・帰属表示'))
+        grp_popup = QGroupBox(self.tr('ポップアップ・ホバー動作・帰属表示'))
         lay_popup = QVBoxLayout(grp_popup)
-        self.rb_popup_click = QRadioButton(self.tr('クリック時にポップアップを表示（既定）'))
+        self.rb_popup_click = QRadioButton(self.tr('クリック時にポップアップを表示（既定、ホバー時はハイライトのみ）'))
         self.rb_popup_click.setChecked(True)
-        self.rb_popup_hover = QRadioButton(self.tr('マウスを乗せた（ホバー）時にポップアップを表示'))
+        self.rb_popup_hover = QRadioButton(self.tr('マウスを乗せた（ホバー）時にポップアップも表示'))
+        self.rb_popup_none = QRadioButton(self.tr('ホバー（マウスオーバー）の効果なし（クリックのみ）'))
         self.popup_group = QButtonGroup(self)
         self.popup_group.addButton(self.rb_popup_click)
         self.popup_group.addButton(self.rb_popup_hover)
+        self.popup_group.addButton(self.rb_popup_none)
         lay_popup.addWidget(self.rb_popup_click)
         lay_popup.addWidget(self.rb_popup_hover)
+        lay_popup.addWidget(self.rb_popup_none)
 
         row_attribution = QHBoxLayout()
         row_attribution.addWidget(QLabel(self.tr('帰属表示（自由入力）:')))
@@ -180,7 +183,11 @@ class DisplayTab(QWidget):
             'minZoom': self.sp_min_zoom.value(),
             'maxZoom': self.sp_max_zoom.value(),
             'basemap': self.cb_basemap.currentData(),
-            'popupTrigger': 'hover' if self.rb_popup_hover.isChecked() else 'click',
+            'popupTrigger': (
+                'hover' if self.rb_popup_hover.isChecked()
+                else 'none' if self.rb_popup_none.isChecked()
+                else 'click'
+            ),
             'attribution': self.le_attribution.text().strip(),
         }
         return display

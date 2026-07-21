@@ -16,6 +16,31 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
   var listEl = document.getElementById('layer-panel-list');
   panel.classList.remove('fag-hidden');
 
+  // Collapsible panel (spec feedback: on a phone it can cover a large
+  // part of the small map) - starts collapsed on narrow screens,
+  // expanded on desktop; either way the toggle button always works.
+  var toggleBtn = document.getElementById('layer-panel-toggle');
+  if (toggleBtn) {
+    if (window.innerWidth <= 768) panel.classList.add('fag-collapsed');
+    toggleBtn.addEventListener('click', function () {
+      panel.classList.toggle('fag-collapsed');
+    });
+  }
+
+  // Reset any stuck hover highlight when the pointer leaves the map
+  // entirely - a fast swipe/drag off the map edge doesn't always
+  // deliver a clean mouseout to whatever feature was last hovered.
+  map.on('mouseout', fagResetActiveHover);
+
+  // Spread exact-duplicate-coordinate points apart *before* any layer
+  // is built - must run across every marker layer together, not one at
+  // a time, since two facilities can be split across separate legend
+  // layers (e.g. by 活用方針: 事業予定地/処分検討地/継続保有地 filtered
+  // from what was one shared dataset) yet still share a coordinate. A
+  // per-layer-only pass would never notice that case, leaving both
+  // points invisibly stacked with only one label/color winning.
+  spreadOverlappingPointsAcrossLayers(layersConfig, layersData, layersStyleData);
+
   // Group layers by their QGIS layer-tree group path (spec feedback:
   // a flat checkbox list got hard to read once there were many
   // layers, so this mirrors the QGIS panel's group/subgroup nesting).
@@ -23,7 +48,18 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
   layersConfig.forEach(function (layerConfig) {
     var geojson = layersData[layerConfig.id];
     var styleData = layersStyleData[layerConfig.id] || {};
-    var layerGroup = buildStyledLayer(geojson, styleData, popupTrigger);
+    // showPopup === false (データ設定 tab's per-layer "ポップアップ表示"
+    // checkbox) means this layer should be entirely click/hover-inert -
+    // not just popup-less. A background reference layer (e.g. a ward
+    // boundary) is otherwise still `interactive` and can win Leaflet's
+    // hit-test over a point layer sitting on top of it, since Canvas/
+    // SVG resolve overlapping clicks to whichever eligible layer was
+    // added to the map last (spec feedback: clicking a point kept
+    // opening the boundary's popup instead). Making it non-interactive
+    // removes it from hit-testing entirely, so clicks/hover pass
+    // through to whatever's actually underneath.
+    var layerInteractive = layerConfig.showPopup !== false;
+    var layerGroup = buildStyledLayer(geojson, styleData, popupTrigger, layerInteractive);
     if (layerConfig.defaultVisible) layerGroup.addTo(map);
 
     var node = tree;
@@ -105,11 +141,21 @@ function buildLegendSwatchHtml(style) {
   if (!style) return '';
   if (style.marker) {
     var m = style.marker;
-    var strokeColor = m.strokeColor || m.color;
-    var strokeWidth = (m.strokeWidth === undefined || m.strokeWidth === null) ? 1 : m.strokeWidth;
-    var shapeClass = (!m.shape || m.shape === 'circle') ? 'fag-legend-circle' : 'fag-legend-box';
-    return '<span class="fag-legend-swatch ' + shapeClass + '" style="background:' + hexToRgba(m.color, m.opacity) +
-      ';border:' + strokeWidth + 'px solid ' + strokeColor + ';"></span>';
+    var shape = m.shape || 'circle';
+    var bg = hexToRgba(m.color, m.opacity);
+    if (shape === 'circle' || shape === 'square') {
+      var strokeColor = m.strokeColor || m.color;
+      var strokeWidth = (m.strokeWidth === undefined || m.strokeWidth === null) ? 1 : m.strokeWidth;
+      var shapeClass = shape === 'circle' ? 'fag-legend-circle' : 'fag-legend-box';
+      return '<span class="fag-legend-swatch ' + shapeClass + '" style="background:' + bg +
+        ';border:' + strokeWidth + 'px solid ' + strokeColor + ';"></span>';
+    }
+    // Clipped/rotated shapes (star/cross/triangle/diamond) mirror the
+    // map's own divIcon rendering, which is borderless fill-only - a
+    // border would get unevenly cut off by the clip-path anyway. The
+    // shape vocabulary here matches SHAPE_NAME_MAP on the Python side
+    // (style_extractor.py), so each has a .fag-legend-<shape> rule.
+    return '<span class="fag-legend-swatch fag-legend-' + shape + '" style="background:' + bg + ';"></span>';
   }
   if (style.line) {
     return '<span class="fag-legend-swatch fag-legend-line" style="background:' + style.line.color + ';"></span>';
@@ -140,9 +186,80 @@ function resolveCategoryStyle(byCategory, props) {
   return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : null;
 }
 
-function buildStyledLayer(geojson, styleData, popupTrigger) {
+/* When multiple point features sit at the exact same coordinate (or a
+   QGIS-precision-identical one - geojson_writer.py already rounds to 6
+   decimals, so two truly co-located source points end up byte-identical
+   here), their circleMarkers/hit-targets stack exactly on top of each
+   other: only the topmost color is visible, its label overlaps the
+   others illegibly (label-declutter.js then hides one, since both
+   permanent tooltips anchor at the same screen position), and a click
+   can hit whichever one happens to be on top in DOM order - not
+   necessarily the one that's visually showing (spec feedback: point
+   color/label/popup didn't match at a shared coordinate). This must
+   run across *every* marker layer together, not one layer at a time:
+   two facilities can be split across separate legend layers (e.g.
+   filtered from one shared dataset into 事業予定地/処分検討地/継続保有地
+   by their 活用方針 value) and still share a coordinate - a per-layer
+   check would never see that, since each layer's own GeoJSON only has
+   one of the two points. Spreading every exact-duplicate group into a
+   small ring (a fixed real-world radius, not a screen-pixel one -
+   simple and avoids pulling in a clustering library) gives each point
+   its own position, so color/label/popup all correspond to the same
+   dot again regardless of which layer(s) they came from. Mutates the
+   layersData features in place, once, before any layer is built. */
+function spreadOverlappingPointsAcrossLayers(layersConfig, layersData, layersStyleData) {
+  var groups = {};
+  layersConfig.forEach(function (layerConfig) {
+    var styleData = layersStyleData[layerConfig.id] || {};
+    if (!(styleData.defaultStyle && styleData.defaultStyle.marker)) return; // point/marker layers only
+    var geojson = layersData[layerConfig.id];
+    if (!geojson || !geojson.features) return;
+    geojson.features.forEach(function (feature) {
+      if (!feature.geometry || feature.geometry.type !== 'Point') return;
+      var coords = feature.geometry.coordinates;
+      var key = coords[0].toFixed(6) + ',' + coords[1].toFixed(6);
+      (groups[key] = groups[key] || []).push(feature);
+    });
+  });
+  Object.keys(groups).forEach(function (key) {
+    var group = groups[key];
+    if (group.length < 2) return;
+    var lng0 = group[0].geometry.coordinates[0];
+    var lat0 = group[0].geometry.coordinates[1];
+    var n = group.length;
+    // Grows a little with group size so 5-6 stacked features still end
+    // up with visibly separate dots, not just a slightly-fatter ring.
+    var radiusMeters = 3 + Math.min(n, 8) * 0.6;
+    var latRad = (lat0 * Math.PI) / 180;
+    var lngScale = Math.cos(latRad) || 1;
+    group.forEach(function (feature, i) {
+      var angle = (2 * Math.PI * i) / n;
+      var dLat = (radiusMeters * Math.sin(angle)) / 111320;
+      var dLng = (radiusMeters * Math.cos(angle)) / (111320 * lngScale);
+      feature.geometry.coordinates = [lng0 + dLng, lat0 + dLat];
+      // Flags this feature for pointToLayer below - only spread-apart
+      // points are close enough together that label-declutter.js needs
+      // to try more than one label direction (see fagLabelMultiDirection);
+      // trying all 4 directions for every one of a dataset's labels
+      // (most of which never sit this close to a neighbor) made a
+      // full-extent view with hundreds of labels noticeably slow to
+      // lay out.
+      feature.__fagSpread = true;
+    });
+  });
+}
+
+function buildStyledLayer(geojson, styleData, popupTrigger, interactive) {
   var style = (styleData && styleData.defaultStyle) || {};
   var byCategory = (styleData && styleData.byCategory) || null;
+  // データ設定 tab's per-layer "ポップアップ表示" checkbox, unchecked.
+  // Labels/legend still show as normal - only click/hover interactivity
+  // (popup, hover highlight, and being hit-tested at all) is disabled,
+  // which is also how a background reference layer is kept from
+  // stealing clicks meant for a layer on top of it (see
+  // initLayerControl's layerInteractive and the `fill` comment below
+  // for the same idea applied to just fillOpacity:0 polygons).
+  interactive = interactive !== false;
 
   if (style.tile) {
     // A raster/XYZ layer already present in the QGIS project (e.g. a
@@ -157,16 +274,23 @@ function buildStyledLayer(geojson, styleData, popupTrigger) {
   if (!geojson) return L.layerGroup();
 
   if (style.marker) {
+    // Duplicate-coordinate spreading already happened once, across all
+    // layers, in initLayerControl - see spreadOverlappingPointsAcrossLayers.
     return L.geoJSON(geojson, {
       pointToLayer: function (feature, latlng) {
         var props = feature.properties || {};
         var resolved = resolveCategoryStyle(byCategory, props);
         var markerStyle = (resolved && resolved.marker) || style.marker;
         var labelStyle = (resolved && resolved.label) || style.label;
-        var marker = createStyledMarker([latlng.lat, latlng.lng], markerStyle);
-        bindStyledLabel(marker, props.label_text, markerStyle, labelStyle);
-        bindPopupIfAny(marker, props, popupTrigger);
-        bindHoverHighlight(marker);
+        var marker = createStyledMarker([latlng.lat, latlng.lng], markerStyle, interactive);
+        var hit = marker.fagInteractive || marker;
+        var visual = marker.fagVisual || marker;
+        bindStyledLabel(hit, props.label_text, markerStyle, labelStyle);
+        hit.fagLabelMultiDirection = !!feature.__fagSpread;
+        if (interactive) {
+          bindPopupIfAny(hit, props, popupTrigger);
+          if (popupTrigger !== 'none') bindHoverHighlight(hit, visual);
+        }
         return marker;
       },
     });
@@ -182,11 +306,13 @@ function buildStyledLayer(geojson, styleData, popupTrigger) {
           color: lineStyle.color,
           weight: lineStyle.width,
           dashArray: lineStyle.dashed ? '6,4' : null,
+          interactive: interactive,
         };
       },
       onEachFeature: function (feature, layer) {
+        if (!interactive) return;
         bindPopupIfAny(layer, feature.properties, popupTrigger);
-        bindHoverHighlight(layer);
+        if (popupTrigger !== 'none') bindHoverHighlight(layer);
       },
     });
   }
@@ -205,15 +331,19 @@ function buildStyledLayer(geojson, styleData, popupTrigger) {
           // itself is turned off - otherwise its invisible interior
           // silently steals clicks meant for point markers on top of
           // or near it (spec feedback: clicking near points kept
-          // opening the boundary layer's popup instead).
+          // opening the boundary layer's popup instead). `interactive`
+          // being false removes it from hit-testing entirely (including
+          // its stroke) - the stronger, opt-in version of this same fix.
           fill: fillStyle.fillOpacity > 0,
           color: fillStyle.strokeColor,
           weight: fillStyle.strokeWidth,
+          interactive: interactive,
         };
       },
       onEachFeature: function (feature, layer) {
+        if (!interactive) return;
         bindPopupIfAny(layer, feature.properties, popupTrigger);
-        bindHoverHighlight(layer);
+        if (popupTrigger !== 'none') bindHoverHighlight(layer);
       },
     });
   }

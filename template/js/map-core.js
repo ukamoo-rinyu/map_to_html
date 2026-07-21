@@ -39,6 +39,26 @@ function initMap(config) {
   var map = L.map('map', {
     minZoom: display.minZoom || 1,
     maxZoom: display.maxZoom || 19,
+    // Circle/line/polygon layers default to Leaflet's SVG renderer,
+    // which draws one DOM node per feature - with several hundred
+    // points across a few layers that's a lot of individual elements
+    // for the browser to re-layout/re-paint on every pan or zoom (spec
+    // feedback: the map stayed "激重" even after halving the marker
+    // count and skipping off-screen labels). Canvas draws every vector
+    // feature onto one shared <canvas> element instead - Leaflet's
+    // click/hover/popup event handling on canvas-rendered layers works
+    // the same as SVG (it does its own hit-testing), so nothing else in
+    // style-renderer.js/layer-control.js needs to change for this.
+    renderer: L.canvas(),
+    // Measured directly against a real ~570-feature dataset: a single
+    // zoom *level* redraws in ~150-200ms (noticeable but fine), but
+    // Leaflet's animated zoom interpolates through every intermediate
+    // frame of a multi-level jump (a fast scroll/pinch commonly asks
+    // for 3-5 levels at once) - that compounded to 8+ *seconds* with
+    // no redraw ever completing, which is what "激重い" actually was.
+    // Turning animation off makes every zoom - single or multi-level -
+    // take the fast one-shot redraw path instead.
+    zoomAnimation: false,
   });
 
   var basemap = BASEMAP_DEFS[display.basemap] || BASEMAP_DEFS.carto_light;

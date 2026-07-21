@@ -15,7 +15,8 @@ from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QTabWidget, QDialogButtonBox, QMessageBox,
     QApplication,
 )
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtCore import Qt, QUrl
+from qgis.PyQt.QtGui import QDesktopServices
 from qgis.core import QgsRasterLayer
 
 from .ui.data_tab import DataTab
@@ -72,9 +73,13 @@ class FacilityAppGeneratorDialog(QDialog):
         if output_settings['output_format'] == 'split':
             # Each run gets its own timestamped subfolder under the chosen
             # parent folder, so the user no longer has to hand-name
-            # test1/test2/... folders before every export.
+            # test1/test2/... folders before every export. The
+            # "Map to html_" prefix identifies which subfolders came from
+            # this plugin when the parent folder is shared with other things.
             stamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_settings['output_path'] = os.path.join(output_settings['output_path'], stamp)
+            output_settings['output_path'] = os.path.join(
+                output_settings['output_path'], f'Map to html_{stamp}'
+            )
 
         self.output_tab.btn_generate.setEnabled(False)
         self.output_tab.set_progress_range(len(layers) + 2)
@@ -129,6 +134,7 @@ class FacilityAppGeneratorDialog(QDialog):
                             'id': entry['id'],
                             'label': entry['label'],
                             'defaultVisible': entry['default_visible'],
+                            'showPopup': entry.get('show_popup', True),
                             'groupPath': layer_utils.get_layer_group_path(entry['layer'].id()),
                         }
                         for entry in layers
@@ -148,6 +154,12 @@ class FacilityAppGeneratorDialog(QDialog):
             if skip_messages:
                 message += '\n\n' + self.tr('以下のレイヤーはスキップされました:\n') + '\n'.join(skip_messages)
             self.output_tab.set_result(message, is_error=False)
+            if written:
+                # written's last entry is always the generated .html file
+                # itself (html_builder.build_output appends it last for
+                # both split and single output), so opening it in the
+                # user's default browser needs no extra bookkeeping here.
+                QDesktopServices.openUrl(QUrl.fromLocalFile(written[-1]))
             QMessageBox.information(self, self.tr('完了'), message)
 
         except Exception as exc:  # noqa: BLE001 - surface any export failure to the user

@@ -25,7 +25,8 @@ def build_config(settings):
         'title_color': str, 'header_bg_color': str, 'font_family': str,
       },
       'layers': [
-        {'id': str, 'label': str, 'defaultVisible': bool, 'groupPath': [str, ...]}, ...
+        {'id': str, 'label': str, 'defaultVisible': bool, 'showPopup': bool,
+         'groupPath': [str, ...]}, ...
       ],
     }
     """
@@ -58,6 +59,7 @@ def build_config(settings):
                 'id': layer['id'],
                 'label': layer['label'],
                 'defaultVisible': bool(layer['defaultVisible']),
+                'showPopup': bool(layer.get('showPopup', True)),
                 'geojsonKey': layer['id'],
                 'groupPath': list(layer.get('groupPath') or []),
             }

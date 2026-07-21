@@ -36,7 +36,8 @@ COL_GROUP = 0
 COL_NAME = 1
 COL_TYPE = 2
 COL_FIELDS = 3
-COL_VISIBLE = 4
+COL_POPUP = 4
+COL_VISIBLE = 5
 
 TYPE_LABELS = {'vector': 'データ', 'raster': '背景タイル'}
 
@@ -73,14 +74,14 @@ class DataTab(QWidget):
             '手前（上）に描画され、凡例（レイヤーパネル）でもこの順に並びます。'
         )))
 
-        self.table = QTableWidget(0, 5)
+        self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels([
             self.tr('グループ'), self.tr('レイヤー名（地図上の表示ラベル）'),
-            self.tr('種別'), self.tr('ポップアップ項目'), self.tr('初期表示ON'),
+            self.tr('種別'), self.tr('ポップアップ項目'), self.tr('ポップアップ表示'), self.tr('初期表示ON'),
         ])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(COL_NAME, QHeaderView.Stretch)
-        for col in (COL_GROUP, COL_TYPE, COL_FIELDS, COL_VISIBLE):
+        for col in (COL_GROUP, COL_TYPE, COL_FIELDS, COL_POPUP, COL_VISIBLE):
             header.setSectionResizeMode(col, QHeaderView.ResizeToContents)
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -190,6 +191,7 @@ class DataTab(QWidget):
             'label': layer.name(),
             'default_visible': True,
             'field_config': initial_config,
+            'show_popup': True,
         })
         self._rebuild_table()
 
@@ -239,6 +241,22 @@ class DataTab(QWidget):
         else:
             # Raster/tile layers have no attributes - nothing to pick.
             self.table.setCellWidget(row, COL_FIELDS, self._centered(QLabel('—')))
+
+        if layer_type == 'vector':
+            chk_popup = QCheckBox()
+            chk_popup.setChecked(entry.get('show_popup', True))
+            chk_popup.setToolTip(self.tr(
+                'オフにすると、このレイヤーはクリック/ホバーしても何も反応しなくなります。\n'
+                '背景の区境界線などが手前のポイントのクリックを奪ってしまう場合に、\n'
+                'そのレイヤーだけオフにしてください。'
+            ))
+            chk_popup.toggled.connect(lambda checked, e=entry: e.__setitem__('show_popup', checked))
+            self.table.setCellWidget(row, COL_POPUP, self._centered(chk_popup))
+        else:
+            # Raster/tile layers are never interactive/clickable at all
+            # (core/tile_layer.py just publishes an L.tileLayer) - no
+            # popup toggle applies here.
+            self.table.setCellWidget(row, COL_POPUP, self._centered(QLabel('—')))
 
         chk_visible = QCheckBox()
         chk_visible.setChecked(entry['default_visible'])
@@ -340,9 +358,14 @@ class DataTab(QWidget):
         order (see module docstring - this order drives both map
         stacking and legend order downstream). `layer` is a
         QgsVectorLayer or QgsRasterLayer - callers branch on type.
-        `field_order` (empty for raster layers) is the ordered list of
-        visible field names picked via the ポップアップ項目 button,
-        ready for geojson_writer.py."""
+        `show_popup` (always True for raster - the checkbox doesn't
+        apply there) controls whether the published layer responds to
+        clicks/hover at all; turning it off is how a background
+        reference layer (e.g. a ward boundary) is kept from stealing
+        clicks meant for a point layer on top of it. `field_order`
+        (empty for raster layers) is the ordered list of visible field
+        names picked via the ポップアップ項目 button, ready for
+        geojson_writer.py."""
         self._sync_labels_from_table()
         result = []
         for index, entry in enumerate(self._entries):
@@ -354,6 +377,7 @@ class DataTab(QWidget):
                 'layer': layer,
                 'label': entry['label'] or layer.name(),
                 'default_visible': entry['default_visible'],
+                'show_popup': entry.get('show_popup', True),
                 'field_order': (
                     field_config.visible_field_order(entry['field_config']) if entry['field_config'] else None
                 ),
