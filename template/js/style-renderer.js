@@ -156,7 +156,21 @@ function bindHoverHighlight(interactiveLayer, visualLayer) {
         weight: (original.weight || 1) + 2,
         fillOpacity: Math.min(1, (original.fillOpacity || 0) + 0.15),
       });
-      if (target.bringToFront) target.bringToFront();
+      // Deliberately NOT calling target.bringToFront() here (removed
+      // v0.3.0): Canvas's hit-testing for BOTH click and hover walks
+      // the shared _drawFirst/.next paint-order list and picks the
+      // LAST match (verified by reading L.Canvas.prototype._onClick/
+      // _handleMouseHover directly) - the SAME list layer-control.js's
+      // bringLayerToFront() sets up once at load to make front-
+      // configured layers win over back layers. bringToFront() here
+      // moved just the single hovered feature to the very end of that
+      // list, which doesn't get undone on mouseout - so hovering a
+      // supposedly-BACK polygon even once permanently jumped it ahead
+      // of every front-configured point sharing that location for the
+      // rest of the page's life (spec feedback: a background polygon
+      // "won" the hover highlight over a point after being hovered).
+      // The stronger stroke/fill above is enough to read as "this is
+      // the hovered feature" without needing to fight z-order for it.
       FAG_ACTIVE_HOVER = { reset: reset };
     });
     interactiveLayer.on('mouseout', reset);
