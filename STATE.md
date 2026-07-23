@@ -5,6 +5,59 @@
 
 ---
 
+## 2026-07-23: ポリゴンレイヤーが手前のポイントのクリックを奪う問題を修正
+
+**ブランチ**: `sonnet/v030-ux-fixes`
+**担当**: Claude Code標準（Sonnet）
+
+実機フィードバック：「ポリゴンのデータ（2000ｍ円など）のポップアップ表示が
+オンのままだと、他のポイントに被さってポイントをクリックしてもポップアップが
+表示されない。レイヤーの重なりの順番でポップアップの優先度をつけてほしい」。
+
+### 調査
+
+直前の`_populate_visible_layers`修正でレイヤー取り込み順序自体は正しくなった
+（`layersConfig`が正しく「奥→手前」の順になった）が、それでもクリック優先度が
+狂うケースがあった。原因を実ブラウザで`L.Canvas.prototype._onClick`のソースを
+直接確認して特定：
+
+```js
+for (o=this._drawFirst; o; o=o.next)
+  (e=o.layer).options.interactive && e._containsPoint(n) && (i=e);
+```
+
+Canvasレンダラーの`_onClick`は`this._layers`（挿入順や`leaflet_id`順）ではなく、
+**`_drawFirst`/`.next`という別管理の描画順連結リスト**を辿って、最後にマッチした
+ものを採用する。この連結リストへの登録順は、`layersConfig.forEach(...).addTo(map)`
+の呼び出し順と**必ずしも一致しない**（7レイヤーの再現テストで実測：
+CircleMarker系（ポイント）がまとめて連結リストの前半に来て、Polygon系
+（区境界線・2000m円）が呼び出し順に関係なく後ろに固まった）。よってポリゴンが
+`layersConfig`上でポイントより奥（前に追加）でも、実際のクリック優先度では
+ポイントより勝ってしまうことがあった。
+
+### 修正
+
+`layer-control.js`に`bringLayerToFront(layer)`を追加。`L.LayerGroup`/
+`L.FeatureGroup`なら`.eachLayer()`で再帰し、`L.Path`系（circleMarker/
+Polygon/Polyline）なら`.bringToFront()`を呼ぶ（非circleの`L.marker`は
+`.eachLayer`も`.bringToFront`も持たないので黙ってスキップ＝別経路のDOM
+スタッキングで既に正しく動く）。`initLayerControl`のメインループで各レイヤーを
+`addTo(map)`した直後に、`layersConfig`の順（＝奥→手前）でこれを呼ぶことで、
+Leafletの内部登録順に関わらず、こちらが意図した重なり順を`_drawFirst`
+連結リストに強制的に反映させる。`defaultVisible:false`（初期非表示）の
+レイヤーでも`bringToFront()`は安全にno-op（`_renderer`未設定時は何もしない
+ガードがLeaflet側にある）。
+
+7レイヤー・地理的に重なる構成（ポイント5層＋ポリゴン2層、実機のQGISパネル
+構成を模した順序）で再現・修正確認済み：修正前は最前面設定のポイントで
+クリックしても奥のポリゴンのポップアップが開いていたが、修正後は正しく
+最前面のポイントが開くことをブラウザで確認。既存の1,530件パフォーマンス
+データセットでも再ロード・ズーム速度に劣化なし（8〜19ms/ズーム）。
+
+**未確認**: 実際のQGISプロジェクトでの動作確認（次回QGIS実機で要確認）。
+
+---
+
 ## 2026-07-23: レイヤー取り込み時の順序が逆だったバグを修正（既存バグ、今回発覚）
 
 **ブランチ**: `sonnet/v030-ux-fixes`

@@ -61,6 +61,24 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
     var layerInteractive = layerConfig.showPopup !== false;
     var layerGroup = buildStyledLayer(geojson, styleData, popupTrigger, layerInteractive);
     if (layerConfig.defaultVisible) layerGroup.addTo(map);
+    // v0.3.0 spec feedback: even with the population/table order fixed
+    // so layersConfig is genuinely back-to-front (data_tab.py task
+    // 2-4), a polygon/line layer earlier in that order could STILL win
+    // click hit-tests over a point layer listed later/in-front - traced
+    // to Leaflet's Canvas renderer resolving _onClick by walking its
+    // OWN internal paint-order linked list (_drawFirst/.next), which
+    // does NOT reliably match layersConfig's addTo() call order once
+    // circleMarkers and Polygons/Polylines are mixed (verified via a
+    // 7-layer repro: circleMarkers ended up grouped ahead of BOTH
+    // polygons in that list regardless of where the polygons sat in
+    // layersConfig). bringToFront() explicitly re-appends a layer's
+    // Path children to the end of that same linked list, so calling it
+    // here - once per layer, in layersConfig's already-correct
+    // back-to-front order - makes it the authoritative click-priority
+    // order instead of leaving it to Leaflet's internal registration
+    // order. No-ops safely for a not-yet-visible (defaultVisible:false)
+    // layer (bringToFront checks the layer actually has a renderer).
+    bringLayerToFront(layerGroup);
 
     var node = tree;
     (layerConfig.groupPath || []).forEach(function (groupName) {
@@ -74,6 +92,24 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
   });
 
   renderLayerTree(tree, listEl, map);
+}
+
+/* Recursively brings every Path child (circleMarker/polygon/polyline -
+   the things that actually participate in Canvas's click hit-test
+   order) to the front of the shared canvas's paint order. Point
+   markers are LayerGroups of two circleMarkers (visual + invisible hit
+   target - see createStyledMarker), reached via .eachLayer; a non-
+   circle marker (divIcon L.marker) has neither .eachLayer nor
+   .bringToFront and is silently skipped - it doesn't need this, since
+   plain DOM markers already click-prioritize correctly via normal DOM
+   stacking (later-added = later in markerPane = on top), a completely
+   separate mechanism from the shared canvas. */
+function bringLayerToFront(layer) {
+  if (layer.eachLayer) {
+    layer.eachLayer(bringLayerToFront);
+    return;
+  }
+  if (layer.bringToFront) layer.bringToFront();
 }
 
 function renderLayerTree(node, containerEl, map) {
