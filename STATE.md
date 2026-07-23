@@ -62,10 +62,11 @@
   戻す場合は多段ズーム連打で要再計測。
 
 ### テストハーネス
-`scratchpad/gen_test_site.py`（セッション一時領域）で 1,530点＋ポリゴン6件の
-分割ファイル出力を生成し、`python -m http.server` で配信して
-ブラウザコンソールから `map.setZoom` 前後の `performance.now()` を計測した。
-リポジトリには含めていない。
+`..\test_harness\gen_test_site.py`（リポジトリ外、QGISwebgene フォルダ直下）で
+1,530点＋ポリゴン6件の分割ファイル出力を QGIS 非依存で生成できる
+（`html_builder.build_output` を直接呼ぶ）。生成先を `python -m http.server` で
+配信し、ブラウザコンソールから `map.setZoom` 前後の `performance.now()` を
+計測した。v0.3.0 の残タスク（検索・一覧表など）の検証にもこれを使うこと。
 
 ---
 
