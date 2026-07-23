@@ -217,6 +217,14 @@ class DataTab(QWidget):
                 return entry['opacity']
         return None
 
+    def _entry_index_for_row(self, row):
+        """Table row `row` (display order, top = front of map) -> the
+        matching index into self._entries (z-order, self._entries[-1]
+        = front of map) - see _rebuild_table's reversal comment. The
+        formula is its own inverse, so the same call also converts an
+        self._entries index back to a table row."""
+        return len(self._entries) - 1 - row
+
     # ------------------------------------------------------------
     def _rebuild_table(self):
         self.table.setRowCount(0)
@@ -317,11 +325,18 @@ class DataTab(QWidget):
     def _sync_labels_from_table(self):
         """Row-edited labels (double-click the name cell) only live in
         the QTableWidgetItem text until this runs - call before reading
-        or reordering `self._entries` so edits aren't lost."""
-        for row, entry in enumerate(self._entries):
+        or reordering `self._entries` so edits aren't lost. The table
+        displays self._entries in reverse (v0.3.0 task 2-4), so each
+        row must be mapped back to its entry via _entry_index_for_row
+        rather than assuming row N is self._entries[N] - conflating the
+        two previously scrambled labels across entries on every move/
+        remove/export (each of which calls this first)."""
+        for row in range(self.table.rowCount()):
             item = self.table.item(row, COL_NAME)
-            if item is not None:
-                entry['label'] = item.text().strip() or entry['label']
+            if item is None:
+                continue
+            entry = self._entries[self._entry_index_for_row(row)]
+            entry['label'] = item.text().strip() or entry['label']
 
     def _move_selected(self, delta):
         """`delta` is in *display* terms: -1 = toward the top of the
@@ -335,7 +350,7 @@ class DataTab(QWidget):
         if row < 0:
             return
         n = len(self._entries)
-        entry_index = n - 1 - row
+        entry_index = self._entry_index_for_row(row)
         new_entry_index = entry_index - delta
         if not (0 <= new_entry_index < n):
             return
@@ -343,7 +358,7 @@ class DataTab(QWidget):
             self._entries[new_entry_index], self._entries[entry_index]
         )
         self._rebuild_table()
-        self.table.selectRow(n - 1 - new_entry_index)
+        self.table.selectRow(self._entry_index_for_row(new_entry_index))
 
     def _open_field_settings(self, layer, entry):
         current_config = entry['field_config'] or field_config.default_field_config(layer)
@@ -398,10 +413,15 @@ class DataTab(QWidget):
 
     def _remove_layer(self):
         self._sync_labels_from_table()
-        rows = sorted({index.row() for index in self.table.selectedIndexes()}, reverse=True)
-        for row in rows:
-            if 0 <= row < len(self._entries):
-                del self._entries[row]
+        rows = {index.row() for index in self.table.selectedIndexes()}
+        # Table rows are display order (reversed - see _rebuild_table),
+        # so each selected row must go through _entry_index_for_row
+        # before deleting from self._entries; deleting by raw row
+        # index removed the wrong layer.
+        entry_indices = sorted((self._entry_index_for_row(row) for row in rows), reverse=True)
+        for entry_index in entry_indices:
+            if 0 <= entry_index < len(self._entries):
+                del self._entries[entry_index]
         self._rebuild_table()
         self.refresh_pick_list()
 
