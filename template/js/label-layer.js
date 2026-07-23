@@ -27,9 +27,9 @@
    cached text metrics - no extra measurement per direction.
 
    Placements kept by the latest pass are published in
-   FAG_LABEL_PLACEMENTS ({marker, rect} in container-pixel coords) so
-   a later feature can hit-test label clicks (e.g. open the marker's
-   popup when its label text is clicked). */
+   FAG_LABEL_PLACEMENTS ({entry, marker, rect} - rect in container-
+   pixel coords) so initLabelClickPopup below can hit-test clicks
+   against them and open the right marker's popup (task 2-1). */
 
 /* Fraction of a label's width/height trimmed from EACH side of its box
    before collision testing - bigger values let labels overlap more
@@ -207,4 +207,43 @@ function measureLabelText(entry) {
     height: lines.length * lineHeight,
     lineHeight: lineHeight,
   };
+}
+
+/* v0.3.0 task 2-1: clicking a label's TEXT (not just the marker under
+   it) opens the same popup. The label canvas has pointer-events:none
+   (deliberately - see initLabelLayer - so clicks pass through to
+   whatever marker/shape sits underneath), so it never receives its
+   own click event; instead this hit-tests the map's click point
+   against the latest FAG_LABEL_PLACEMENTS.
+
+   Must not steal a popup a directly-clicked feature already opened
+   via its own click handler - Leaflet fires a layer's own 'click'
+   (and any popup it opens, via bindPopup's internal click listener)
+   BEFORE the map's own 'click' listeners run (its simulated event
+   bubbling: layer first, then map). So tracking whether 'popupopen'
+   already fired earlier in this same click's dispatch is enough to
+   tell "the click was actually on a feature" apart from "the click
+   only hit a label drawn over empty space" - no marker hit-testing of
+   our own is needed for that half of the decision. */
+function initLabelClickPopup(map) {
+  var popupOpenedThisClick = false;
+  map.on('popupopen', function () { popupOpenedThisClick = true; });
+  map.on('click', function (e) {
+    var openedByFeature = popupOpenedThisClick;
+    popupOpenedThisClick = false;
+    if (openedByFeature) return;
+    var hit = hitTestLabelPlacement(e.containerPoint);
+    if (hit && hit.marker.openPopup) hit.marker.openPopup();
+  });
+}
+
+function hitTestLabelPlacement(containerPoint) {
+  for (var i = 0; i < FAG_LABEL_PLACEMENTS.length; i++) {
+    var r = FAG_LABEL_PLACEMENTS[i].rect;
+    if (containerPoint.x >= r.left && containerPoint.x <= r.right &&
+      containerPoint.y >= r.top && containerPoint.y <= r.bottom) {
+      return FAG_LABEL_PLACEMENTS[i];
+    }
+  }
+  return null;
 }
