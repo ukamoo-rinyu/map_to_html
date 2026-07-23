@@ -5,6 +5,65 @@
 
 ---
 
+## 2026-07-23: 実機フィードバックで判明した2件を修正（v0.3.0 タスク2-2見直し・2-4バグ）
+
+**ブランチ**: `sonnet/v030-ux-fixes`（下記「UX改善・バグ修正5件」の直後）
+**担当**: Claude Code標準（Sonnet）
+
+実際のQGIS環境（本物のレイヤー構成）でプラグインを試したユーザーから2件の指摘：
+
+### 1. 背景地図ON/OFFの仕様変更（2-2の再解釈）
+最初の実装は「出力したHTMLのレイヤーパネルに背景地図トグルを追加する」という
+ランタイム方式だった。ユーザーからのフィードバック: 「背景地図のオンオフは、
+html上のレイヤーでの操作ではなく、出力前の背景地図（ベースマップ）で有り無しを
+決めるようにして」＝ HTML側ではなく**プラグイン側（生成前）**で決める仕様に変更。
+
+- `ui/display_tab.py`: 表示設定タブの「背景地図（ベースマップ）」グループに
+  「背景地図を表示する」チェックボックス（デフォルトON）を追加。OFFの間は
+  地図タイルのコンボボックスを無効化。`get_settings()`が`basemapEnabled`を返す。
+- `core/config_builder.py`: `config.display.basemapEnabled`を追加。
+- `template/js/map-core.js::initMap`: `display.basemapEnabled !== false`の
+  場合のみタイルレイヤーを生成・追加するよう変更（無効時は一切生成しない）。
+- `template/js/layer-control.js`: 追加していた`addBasemapToggleItem`と
+  そのための`hasBasemap`早期return分岐を完全に削除し、元の
+  `if (!layersConfig || !layersConfig.length) return;`に戻した。
+
+ブラウザで`basemapEnabled: true/false`それぞれ生成し、trueでは
+`L.TileLayer`が1つ地図に存在／falseでは0個であること、どちらの場合も
+出力側レイヤーパネルに「背景地図」という項目が一切現れないことを確認済み。
+
+### 2. レイヤー並び替え機能の実際のバグ（2-4）
+ユーザー: 「レイヤーの上下に移動させるボタンが、動きが変。htmlのレイヤー表示も
+おかしくなっている。」→ 実機の9レイヤー構成（グループ入り・ラスター混在）で
+確認したところ、**`_move_selected`自体のインデックス計算は正しかったが、
+`_sync_labels_from_table`と`_remove_layer`の2箇所が表示順反転（前回の2-4修正）に
+追従できておらず、テーブル行番号をそのまま`self._entries`の添字として使って
+いた**ため、以下が発生していた:
+
+- `_sync_labels_from_table`（`_move_selected`/`_remove_layer`/`get_layers()`の
+  すべてが呼び出し前に実行）が、行を編集した際に**別のレイヤーのラベルへ
+  誤って書き込む**→ 移動・削除・エクスポートのたびにラベルが少しずつ
+  入れ替わっていく（「動きが変」の正体）。
+- `_remove_layer`が選択した行と**異なるレイヤー**を`self._entries`から
+  削除していた（同じ理由）。
+
+修正: 変換ロジックを1箇所（`_entry_index_for_row(row)`、
+`len(self._entries) - 1 - row`、自己逆関数）にまとめ、
+`_sync_labels_from_table`・`_move_selected`・`_remove_layer`の3箇所すべてを
+これ経由に統一。実際の画面のレイアウト（9行、グループ・ラスター混在）を
+手でトレースし、リネーム→上へ移動、削除の両方で正しいレイヤーが
+操作対象になることを確認済み（QGIS非依存のため実機での自動テストは不可、
+手動トレースのみ）。
+
+**教訓**: テーブル表示順を反転させる変更（2-4）は、`_move_selected`だけでなく
+「テーブル行番号→`self._entries`添字」という変換が必要な**すべての**箇所を
+洗い出す必要があった。1回目の実装では`_move_selected`しか直さず、
+同じ変換が必要な`_sync_labels_from_table`/`_remove_layer`を見落としていた。
+今後同様の「表示順だけ反転」系の変更をする際は、`self.table.`の全使用箇所を
+grepしてから着手すること。
+
+---
+
 ## 2026-07-23: UX改善・バグ修正 5件（v0.3.0 タスク2-1〜2-5）
 
 **ブランチ**: `sonnet/v030-ux-fixes`（`feature/canvas-label-layer` からの派生。
