@@ -5,6 +5,123 @@
 
 ---
 
+## 2026-07-23: UX改善・バグ修正 5件（v0.3.0 タスク2-1〜2-5）
+
+**ブランチ**: `sonnet/v030-ux-fixes`（`feature/canvas-label-layer` からの派生。
+2-1がFable5のCanvasラベル層 `FAG_LABEL_PLACEMENTS` に依存するため、そちらの上に積んだ）
+**担当**: Claude Code標準（Sonnet）
+
+指示書の運用は本来「1機能1ブランチ・1PR」だが、今回はGitHubへのpushを行わない
+セッション内作業だったため、5件を1ブランチ・5コミット（タスクごとに1コミット、
+`git revert <sha>` で個別に戻せる）にまとめた。実際にpush/PRを作る際は、必要なら
+コミット単位でcherry-pickして分割することを推奨する。
+
+### 2-1. ラベルクリックでポップアップ表示
+`template/js/label-layer.js` に `initLabelClickPopup(map)` を追加（`main.js` から
+`initLabelLayer` の直後に呼び出し）。ラベルはpointer-events:noneのCanvasに描画されて
+いるため自分ではクリックを拾えず、`map`の`click`イベントの`containerPoint`を
+`FAG_LABEL_PLACEMENTS`（Fable5が1-1/1-2で公開済み）にヒットテストする方式。
+
+実際のマーカーを直接クリックした場合に、たまたま別マーカーのラベル矩形とも
+重なっていて誤ったポップアップに横取りされないよう、`popupopen`イベントが
+「同じクリックの中で」既に発火済みかを見て判定している（Leafletは実際に
+クリックされたレイヤー自身のclickリスナー→ポップアップを開く処理を、
+mapレベルのclickリスナーより先に実行するため、地図click時点で
+`popupOpenedThisClick`が立っていれば「本物の地物を直接クリックした」ケースと
+判断してラベルのヒットテストをスキップする）。ブラウザで実際に
+`MouseEvent('click')`を合成発火して、(a)ラベルだけの位置→正しいポップアップが開く、
+(b)マーカー本体クリック→横取りされず本体のポップアップのまま、(c)何もない場所→
+何も開かない、の3パターンを確認済み。
+
+### 2-2. 背景地図のON/OFF切り替え
+`template/js/map-core.js::initMap`が生成する背景タイルレイヤーを
+`map.fagBasemapLayer`に保持するよう変更。`template/js/layer-control.js`の
+`initLayerControl`が、レイヤーパネル最上部に常に「背景地図」トグル項目を追加する
+（`addBasemapToggleItem`。既存の`.fag-legend-tile`市松模様スウォッチを流用、
+新規CSS不要）。データレイヤーが1件も無くてもパネル自体は表示されるよう、
+早期returnの条件を`!hasBasemap && !hasLayers`に変更。ブラウザでチェックを外すと
+CARTOタイルだけが消え、他のタイルレイヤーは残ることを確認済み。
+
+### 2-3. 地図追加時の透過率の継承
+これまで`core/tile_layer.py::extract_tile_style`はラスター/XYZレイヤーの
+透過率を一切読み取っておらず、Web出力は常に不透明描画になっていた（未実装の
+バグという扱い）。修正: `tile_layer.py`に`read_native_opacity(layer)`
+（`layer.renderer().opacity()`、失敗時1.0）を追加し、`extract_tile_style`は
+オプション引数`opacity_override`があればそれを、無ければQGIS側のネイティブ値を
+`tile.opacity`として書き出す。`template/js/layer-control.js`の`style.tile`分岐で
+`L.tileLayer(...)`に`opacity`オプションとして適用。
+
+指示書が「デフォルト継承＋個別変更可の両対応が望ましい」としていたため、
+`ui/data_tab.py`のテーブルに列（`COL_OPACITY`、ラスター行のみ`QSpinBox`0-100%、
+ベクター行は`—`）を追加。新規にラスターレイヤーを追加した際のデフォルト値は
+`_last_raster_opacity()`（テーブル内で直前に追加されたラスター行の値を継承）→
+無ければ`tile_layer.read_native_opacity()`（QGIS側の値）の順にフォールバック。
+`dialog.py`が`entry.get('opacity')`を`extract_tile_style`に渡す。
+`ui/data_tab.py`の列変更が大きいため`get_layers()`のdocstringも更新済み。
+ブラウザ確認: `opacity: 0.35`で生成したタイルレイヤーが実際に
+`L.TileLayer`の`options.opacity`に反映されていることを確認。QGIS実機での
+`layer.renderer().opacity()`取得自体はQGIS非依存のテスト環境のため未検証
+（次回QGIS実機での確認が必要）。
+
+### 2-4. レイヤー選択リストの並び順の分かりやすさ改善
+内部のz-order/描画順ロジック（`self._entries`の並び＝`get_layers()`の順＝
+`addTo(map)`呼び出し順）は一切変更せず、UI表示だけを反転。
+- `ui/data_tab.py`: `_rebuild_table`が`reversed(self._entries)`でテーブル行を
+  描画するように変更。`_move_selected(delta)`は表示行番号↔`self._entries`
+  インデックスの変換式（`entry_index = n-1-row`、上へ移動＝`entry_index`を
+  +1する方向）に書き換え。スタンドアロンのPythonスクリプトで
+  2000パターンのランダム操作を検証し、選択追跡・重複/消失なしを確認済み
+  （QGIS非依存、`test_harness`とは別にスクラッチパッドに作成、リポジトリ外）。
+- `template/js/layer-control.js::renderLayerTree`: 各グループ階層内の
+  `node.items`（葉レイヤー）の表示順のみ`.slice().reverse()`で反転。
+  グループ自体の並び順（`node.order`）はQGISのレイヤーツリーのグループ順を
+  意図的にミラーしている既存機能のため、あえて変更していない。
+
+ブラウザで実際に3レイヤー（back/mid/front）を`self._entries`順で構成し、
+生成されたパネルが「front, mid, back」の順（＝リスト上＝地図の最前面）で
+表示されることを確認済み。
+
+### 2-5. ポイントの縁線（アウトライン）が反映されないバグの修正
+`core/style_extractor.py`側のストローク抽出自体は元から正しく動作していた
+（`_extract_marker_style`が`strokeColor`/`strokeWidth`を取得できている）。
+バグはJS側: `template/js/style-renderer.js::createStyledMarker`で、円形
+（circle）マーカーは`L.circleMarker`の`color`/`weight`オプションで縁線が
+描画されていたが、非円形（square/diamond/triangle/cross/star、CSSの
+`clip-path`で切り抜くdivIcon方式）は塗り色の`<span>`を1つ描画するだけで、
+縁線を描く仕組みが最初から存在しなかった。
+
+修正: 非円形マーカーを「strokeColor色の全サイズ span」＋「fill色で
+strokeWidth分だけ内側に縮めたspan」の2枚重ねに変更（`createStyledMarker`）。
+2枚は`position:relative`な無変形の親要素の下に**兄弟要素**として置く
+（`fag-shape-diamond`等のCSSクラス自身が`transform:rotate(45deg)`を持つため、
+一方をもう一方の中にネストすると回転が二重にかかってしまう＝ひし形が
+90度回転してしまうバグを避けるため）。中心座標が一致するよう
+`innerOffset = (size - innerSize) / 2`で計算。`strokeWidth === 0`
+（QGIS側でストロークなし設定）の場合は従来通りfill spanのみ。
+
+ブラウザで実際に6形状（circle/square/diamond/triangle/cross/star）を
+黄色地×赤縁（strokeWidth:4px）で生成し、全形状で縁線が視認できることを
+スクリーンショットで確認済み。ホバーハイライト（`.fag-marker-hover`の
+`transform:scale(1.3)`）が新しいネスト構造でも壊れていないことも確認済み。
+
+### 検証方法・環境
+`..\test_harness\gen_test_site.py`に加え、今回は小規模な手作り検証サイト
+生成スクリプトをスクラッチパッドに作成（`verify_v030_ux.py` - 6形状マーカー・
+ライン・半透明タイルレイヤーを持つ、目視確認しやすい構成）。1,530点データセットでも
+再生成してズーム性能に回帰がないこと（1段あたり2.4〜6ms、Fable5の計測と同水準）、
+ラベル配置数がz12で202件のまま変わらないことを確認済み。
+
+**`.claude/launch.json`のdirectory変更はセッション中は反映されない**ことが
+判明（`preview_start`は起動時にlaunch.jsonをキャッシュしている様子）。
+実行中のプレビューサーバーに紐づくディレクトリを変えたい場合は
+`preview_stop`→`preview_start`ではなく、**編集後に一度セッションが
+launch.jsonを読み直すタイミング**（もしくは元のディレクトリ自体を更新）が
+必要。次回同じ問題に遭遇したら、まず`preview_logs`やファイル内容の直接grepで
+「サーバーが実際にどのファイルを返しているか」を疑うこと（本セッションでは
+これに気づかず一時的に誤った検証結果を得た）。
+
+---
+
 ## 2026-07-23: ラベル描画をCanvas方式に全面変更（v0.3.0 タスク1-1・1-2）
 
 **ブランチ**: `feature/canvas-label-layer`
