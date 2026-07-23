@@ -98,7 +98,9 @@ class FacilityAppGeneratorDialog(QDialog):
 
                     if isinstance(entry['layer'], QgsRasterLayer):
                         try:
-                            style = tile_layer.extract_tile_style(entry['layer'])
+                            style = tile_layer.extract_tile_style(
+                                entry['layer'], opacity_override=entry.get('opacity')
+                            )
                         except ValueError as exc:
                             skipped_ids.add(entry['id'])
                             skip_messages.append(str(exc))

@@ -23,21 +23,22 @@ only place layer order needs to be controlled.
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton,
     QGroupBox, QTableWidget, QTableWidgetItem, QCheckBox, QHeaderView,
-    QMessageBox, QAbstractItemView,
+    QMessageBox, QAbstractItemView, QSpinBox,
 )
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QFont
 from qgis.core import QgsRasterLayer
 
-from ..core import layer_utils, field_config
+from ..core import layer_utils, field_config, tile_layer
 from . import field_dialog
 
 COL_GROUP = 0
 COL_NAME = 1
 COL_TYPE = 2
-COL_FIELDS = 3
-COL_POPUP = 4
-COL_VISIBLE = 5
+COL_OPACITY = 3
+COL_FIELDS = 4
+COL_POPUP = 5
+COL_VISIBLE = 6
 
 TYPE_LABELS = {'vector': 'データ', 'raster': '背景タイル'}
 
@@ -70,18 +71,19 @@ class DataTab(QWidget):
         lay.addLayout(row_add)
 
         lay.addWidget(QLabel(self.tr(
-            '行を選択して「上へ移動／下へ移動」で表示順を変更できます。下にあるレイヤーほど地図上で'
-            '手前（上）に描画され、凡例（レイヤーパネル）でもこの順に並びます。'
+            '行を選択して「上へ移動／下へ移動」で表示順を変更できます。リストの上にあるレイヤーほど'
+            '地図上で手前（上）に描画され、凡例（レイヤーパネル）でもこの順に並びます。'
         )))
 
-        self.table = QTableWidget(0, 6)
+        self.table = QTableWidget(0, 7)
         self.table.setHorizontalHeaderLabels([
             self.tr('グループ'), self.tr('レイヤー名（地図上の表示ラベル）'),
-            self.tr('種別'), self.tr('ポップアップ項目'), self.tr('ポップアップ表示'), self.tr('初期表示ON'),
+            self.tr('種別'), self.tr('透過率'), self.tr('ポップアップ項目'),
+            self.tr('ポップアップ表示'), self.tr('初期表示ON'),
         ])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(COL_NAME, QHeaderView.Stretch)
-        for col in (COL_GROUP, COL_TYPE, COL_FIELDS, COL_POPUP, COL_VISIBLE):
+        for col in (COL_GROUP, COL_TYPE, COL_OPACITY, COL_FIELDS, COL_POPUP, COL_VISIBLE):
             header.setSectionResizeMode(col, QHeaderView.ResizeToContents)
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -179,12 +181,25 @@ class DataTab(QWidget):
 
         if isinstance(layer, QgsRasterLayer):
             initial_config = None
+            # v0.3.0 task 2-3: default a newly-added raster/tile layer's
+            # opacity to whatever the most-recently-added raster layer
+            # in this table is already set to ("継承" - inherit the
+            # transparency already configured on an existing layer),
+            # so publishing several translucent overlays in a row
+            # doesn't mean re-picking the same value each time. Falls
+            # back to this layer's own native QGIS opacity for the
+            # first raster layer added in a session - either way, the
+            # per-row spinbox in _append_row lets it be changed
+            # individually afterward ("個別に設定できるように").
+            inherited_opacity = self._last_raster_opacity()
+            opacity = inherited_opacity if inherited_opacity is not None else tile_layer.read_native_opacity(layer)
         else:
             saved_config = field_config.load_field_config(layer)
             if saved_config is not None:
                 initial_config = field_config.reconcile_field_config(layer, saved_config)
             else:
                 initial_config = field_config.default_field_config(layer)
+            opacity = None  # not applicable to vector layers
 
         self._entries.append({
             'layer_id': layer_id,
@@ -192,13 +207,32 @@ class DataTab(QWidget):
             'default_visible': True,
             'field_config': initial_config,
             'show_popup': True,
+            'opacity': opacity,
         })
         self._rebuild_table()
+
+    def _last_raster_opacity(self):
+        for entry in reversed(self._entries):
+            if entry.get('opacity') is not None:
+                return entry['opacity']
+        return None
 
     # ------------------------------------------------------------
     def _rebuild_table(self):
         self.table.setRowCount(0)
-        for entry in self._entries:
+        # v0.3.0 task 2-4: the table is displayed in the REVERSE of
+        # self._entries. self._entries[0] is the map's bottommost layer
+        # (added to the map first, in get_layers() order) and
+        # self._entries[-1] is the topmost (added last, drawn over
+        # everything else) - but showing that same order top-to-bottom
+        # in a table made "the layer at the bottom of the list" the one
+        # that ends up on TOP of the map, which read as backwards (spec
+        # feedback). Reversing purely this table's display order (not
+        # self._entries itself, which still drives get_layers()/the
+        # actual map stacking) makes "top of the list" mean "top of the
+        # map", matching how QGIS's own layers panel behaves. See
+        # _move_selected for the matching index translation.
+        for entry in reversed(self._entries):
             self._append_row(entry)
 
     def _append_row(self, entry):
@@ -221,6 +255,23 @@ class DataTab(QWidget):
         type_item = QTableWidgetItem(TYPE_LABELS.get(layer_type, layer_type))
         type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)
         self.table.setItem(row, COL_TYPE, type_item)
+
+        if layer_type == 'raster':
+            spn_opacity = QSpinBox()
+            spn_opacity.setRange(0, 100)
+            spn_opacity.setSuffix('%')
+            spn_opacity.setValue(round((entry.get('opacity') if entry.get('opacity') is not None else 1.0) * 100))
+            spn_opacity.setToolTip(self.tr(
+                '背景地図・ラスターレイヤーの透過率です。新しく追加したレイヤーは、直前に追加した'
+                'ラスターレイヤーの透過率を引き継ぎます（未追加ならQGIS側の設定を引き継ぎます）。'
+            ))
+            spn_opacity.valueChanged.connect(lambda value, e=entry: e.__setitem__('opacity', value / 100.0))
+            self.table.setCellWidget(row, COL_OPACITY, self._centered(spn_opacity))
+        else:
+            # Vector layer opacity comes from the QGIS symbol itself
+            # (style_extractor.py extracts it automatically) - no
+            # separate control needed here.
+            self.table.setCellWidget(row, COL_OPACITY, self._centered(QLabel('—')))
 
         if layer_type == 'vector':
             cell = QWidget()
@@ -273,14 +324,26 @@ class DataTab(QWidget):
                 entry['label'] = item.text().strip() or entry['label']
 
     def _move_selected(self, delta):
+        """`delta` is in *display* terms: -1 = toward the top of the
+        table (v0.3.0 task 2-4: table top = map top = drawn in front),
+        +1 = toward the bottom (map bottom = drawn behind). Since the
+        table renders self._entries in reverse (see _rebuild_table),
+        moving toward the table's top means moving to a *higher* index
+        in self._entries - the opposite sign from `delta`."""
         self._sync_labels_from_table()
         row = self.table.currentRow()
-        new_row = row + delta
-        if row < 0 or not (0 <= new_row < len(self._entries)):
+        if row < 0:
             return
-        self._entries[row], self._entries[new_row] = self._entries[new_row], self._entries[row]
+        n = len(self._entries)
+        entry_index = n - 1 - row
+        new_entry_index = entry_index - delta
+        if not (0 <= new_entry_index < n):
+            return
+        self._entries[entry_index], self._entries[new_entry_index] = (
+            self._entries[new_entry_index], self._entries[entry_index]
+        )
         self._rebuild_table()
-        self.table.selectRow(new_row)
+        self.table.selectRow(n - 1 - new_entry_index)
 
     def _open_field_settings(self, layer, entry):
         current_config = entry['field_config'] or field_config.default_field_config(layer)
@@ -365,7 +428,9 @@ class DataTab(QWidget):
         clicks meant for a point layer on top of it. `field_order`
         (empty for raster layers) is the ordered list of visible field
         names picked via the ポップアップ項目 button, ready for
-        geojson_writer.py."""
+        geojson_writer.py. `opacity` (0.0-1.0, raster layers only,
+        None for vector) is the per-layer override from the 透過率
+        spinbox (v0.3.0 task 2-3), ready for tile_layer.py."""
         self._sync_labels_from_table()
         result = []
         for index, entry in enumerate(self._entries):
@@ -378,6 +443,7 @@ class DataTab(QWidget):
                 'label': entry['label'] or layer.name(),
                 'default_visible': entry['default_visible'],
                 'show_popup': entry.get('show_popup', True),
+                'opacity': entry.get('opacity'),
                 'field_order': (
                     field_config.visible_field_order(entry['field_config']) if entry['field_config'] else None
                 ),

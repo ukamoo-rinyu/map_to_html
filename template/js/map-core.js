@@ -62,9 +62,14 @@ function initMap(config) {
   });
 
   var basemap = BASEMAP_DEFS[display.basemap] || BASEMAP_DEFS.carto_light;
-  L.tileLayer(basemap.url, Object.assign({
+  var basemapLayer = L.tileLayer(basemap.url, Object.assign({
     maxZoom: display.maxZoom || 19,
   }, basemap.options)).addTo(map);
+  // Stashed on the map itself (same pattern as .fagInteractive/
+  // .fagVisual elsewhere) so layer-control.js's basemap on/off toggle
+  // (v0.3.0 task 2-2) can add/remove it without initMap's return type
+  // changing.
+  map.fagBasemapLayer = basemapLayer;
 
   // Appended, not replacing the basemap's own attribution() above -
   // that one's required by its provider's terms of use (spec 出力設定

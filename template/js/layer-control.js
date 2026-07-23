@@ -10,7 +10,9 @@
    generic "all attributes" popup since there's no curated field
    mapping yet. */
 function initLayerControl(map, layersConfig, layersData, layersStyleData, popupTrigger) {
-  if (!layersConfig || !layersConfig.length) return;
+  var hasBasemap = !!map.fagBasemapLayer;
+  var hasLayers = !!(layersConfig && layersConfig.length);
+  if (!hasBasemap && !hasLayers) return;
 
   var panel = document.getElementById('layer-panel');
   var listEl = document.getElementById('layer-panel-list');
@@ -31,6 +33,16 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
   // entirely - a fast swipe/drag off the map edge doesn't always
   // deliver a clean mouseout to whatever feature was last hovered.
   map.on('mouseout', fagResetActiveHover);
+
+  // v0.3.0 task 2-2: the single background basemap tile layer (chosen
+  // on 表示設定 - see map-core.js's BASEMAP_DEFS) previously had no way
+  // to hide it once published. Its own toggle entry sits at the top of
+  // this panel, above the per-layer list, whenever a basemap exists.
+  if (hasBasemap) {
+    addBasemapToggleItem(map, listEl);
+  }
+
+  if (!hasLayers) return;
 
   // Spread exact-duplicate-coordinate points apart *before* any layer
   // is built - must run across every marker layer together, not one at
@@ -76,6 +88,27 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
   renderLayerTree(tree, listEl, map);
 }
 
+/* v0.3.0 task 2-2: on/off toggle for the single background basemap
+   tile layer (map.fagBasemapLayer, set by map-core.js's initMap).
+   Reuses the existing checkerboard `.fag-legend-tile` swatch style
+   already used for raster/XYZ tile legend entries, so it looks
+   consistent with the rest of the panel without new CSS. */
+function addBasemapToggleItem(map, listEl) {
+  var li = document.createElement('li');
+  li.innerHTML = '<input type="checkbox" id="layer-toggle-basemap" checked>' +
+    '<span class="fag-legend-swatch fag-legend-tile"></span>' +
+    '<label for="layer-toggle-basemap"></label>';
+  li.querySelector('label').textContent = '背景地図';
+  li.querySelector('input').addEventListener('change', function (e) {
+    if (e.target.checked) {
+      map.fagBasemapLayer.addTo(map);
+    } else {
+      map.removeLayer(map.fagBasemapLayer);
+    }
+  });
+  listEl.appendChild(li);
+}
+
 function renderLayerTree(node, containerEl, map) {
   node.order.forEach(function (groupName) {
     var child = node.children[groupName];
@@ -95,7 +128,15 @@ function renderLayerTree(node, containerEl, map) {
     renderLayerTree(child, subUl, map);
   });
 
-  node.items.forEach(function (item) {
+  // v0.3.0 task 2-4: within this group level, display items in the
+  // reverse of `layersConfig` order - node.items[last] was added to
+  // the map LAST (drawn on top of its siblings), so listing it FIRST
+  // here makes "top of this panel" mean "top of the map" for the
+  // items sharing this group, matching data_tab.py's same reversal on
+  // the plugin's own table. Sibling GROUP order (node.order, just
+  // above) is intentionally left untouched - that mirrors QGIS's own
+  // layer-tree group order, a separate concern from this stacking fix.
+  node.items.slice().reverse().forEach(function (item) {
     var layerConfig = item.config;
     var layerGroup = item.layerGroup;
     var checkboxId = 'layer-toggle-' + layerConfig.id;
@@ -264,10 +305,15 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive) {
   if (style.tile) {
     // A raster/XYZ layer already present in the QGIS project (e.g. a
     // 国土地理院 basemap), published as-is rather than styled GeoJSON.
+    // `opacity` (v0.3.0 task 2-3) is either the layer's own native
+    // QGIS transparency or the plugin's per-layer override - see
+    // core/tile_layer.py::extract_tile_style.
+    var tileOpacity = (style.tile.opacity === undefined || style.tile.opacity === null) ? 1 : style.tile.opacity;
     return L.tileLayer(style.tile.url, {
       minZoom: style.tile.minZoom,
       maxZoom: style.tile.maxNativeZoom,
       maxNativeZoom: style.tile.maxNativeZoom,
+      opacity: tileOpacity,
     });
   }
 
