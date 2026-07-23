@@ -167,8 +167,25 @@ class DataTab(QWidget):
     def _populate_visible_layers(self):
         """Pre-fill the table with whatever layers are currently
         checked/visible in the QGIS layer panel, so the common case
-        (publish what I'm already looking at) needs no manual 追加."""
-        for layer_id in layer_utils.list_visible_layer_ids():
+        (publish what I'm already looking at) needs no manual 追加.
+
+        list_visible_layer_ids() returns QGIS's own layer-tree order:
+        panel-top (=drawn in front in QGIS) first, panel-bottom
+        (=drawn behind) last. self._entries needs the OPPOSITE - index
+        0 is the layer added to the output map FIRST (so it ends up at
+        the very back), index -1 is added LAST (front) - see
+        _rebuild_table's comment. Appending QGIS's front-to-back order
+        directly (no reversal) put every freshly-populated layer's
+        output stacking exactly backwards from its QGIS one: a point
+        layer placed at the top of the QGIS panel (typically so it's
+        clickable above everything else) ended up at the very back of
+        the output instead, silently losing clicks/popups to whatever
+        polygon/line layers happened to be underneath it in the QGIS
+        panel (spec feedback: "施設のポイントをクリックできない" traced
+        to exactly this). reversed() here is what makes a freshly
+        auto-populated table already mirror QGIS's own stacking without
+        the user having to manually reorder every layer by hand."""
+        for layer_id in reversed(layer_utils.list_visible_layer_ids()):
             self._add_layer_by_id(layer_id)
         self.refresh_pick_list()
 
