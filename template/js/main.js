@@ -40,7 +40,7 @@ function applyTheme(theme) {
   FAG.map = initMap(config);
   applyDisplaySettings(FAG.map, layersData, config.display);
   initLayerControl(FAG.map, config.layers, layersData, layersStyleData, config.display.popupTrigger);
-  initLabelDeclutter(FAG.map);
+  initLabelLayer(FAG.map);
 
   // Panels/CSS can change the map container size after Leaflet measured it once.
   setTimeout(function () { FAG.map.invalidateSize(); }, 150);

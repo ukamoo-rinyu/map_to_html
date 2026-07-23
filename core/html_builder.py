@@ -14,7 +14,7 @@ JS_MODULE_ORDER = [
     'style-renderer.js',
     'map-core.js',
     'layer-control.js',
-    'label-declutter.js',
+    'label-layer.js',
     'main.js',
 ]
 

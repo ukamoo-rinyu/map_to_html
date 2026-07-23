@@ -83,22 +83,6 @@ html, body {
 
 #map { width: 100%; height: 100%; }
 
-/* ---- Marker labels (permanent tooltips, spec 4.2.5) ---- */
-/* IMPORTANT: use `pre` (not `pre-line`/`normal`). CJK text has no
-   spaces, so once wrapping is allowed at all, the browser's
-   shrink-to-fit width for this absolutely-positioned box collapses to
-   the width of a single character (a valid CSS break point exists
-   between every pair of CJK characters) and the whole label renders
-   as one glyph per line. `pre` still honors explicit \n from QGIS
-   wordwrap()/expressions but disables auto-wrapping entirely. */
-.fag-label {
-  background: none;
-  border: none;
-  box-shadow: none;
-  white-space: pre;
-  padding: 0;
-}
-
 /* ---- Marker shapes for non-circle symbols (divIcon) ---- */
 .fag-marker-icon { background: transparent; border: none; }
 .fag-shape-square { display: block; }

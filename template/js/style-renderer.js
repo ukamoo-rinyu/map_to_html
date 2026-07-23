@@ -3,11 +3,12 @@
    (point/line/polygon) - there's no longer a specially-designated
    "sites" layer, so all styling flows through this one path. */
 
-/* Markers currently on the map with a permanent label bound, in
-   registration order - label-declutter.js walks this to hide
-   overlapping labels once the map gets dense. Declared here (not in
-   label-declutter.js) so bindStyledLabel can push into it regardless
-   of module load order within the bundled <script>. */
+/* Every labeled marker, in registration order - label-layer.js walks
+   this on each view change to place and draw the visible labels onto
+   its shared canvas. Entries are {marker, text, labelStyle, anchorGap}
+   plus a lazily-cached `metrics` (see measureLabelText). Declared here
+   (not in label-layer.js) so bindStyledLabel can push into it
+   regardless of module load order within the bundled <script>. */
 var FAG_LABEL_REGISTRY = [];
 
 // A raw QGIS marker size (often ~8px diameter) is fine to look at but
@@ -70,41 +71,22 @@ function createStyledMarker(latlng, style, interactive) {
   return L.marker(latlng, { icon: icon, interactive: interactive });
 }
 
-/* Binds a permanent tooltip showing `label_text` (spec 4.2.1.1),
-   styled to match the QGIS label format (font/size/color/buffer).
-   Always anchored 'top' - label-declutter.js handles moving a
-   colliding label elsewhere itself, via a plain margin offset on the
-   same element rather than rebinding this tooltip in a different
-   Leaflet `direction` (an earlier version did that and it was
-   measurably too expensive at this app's real dataset scale - see
-   label-declutter.js's fagNudgeLabelElement). */
+/* Registers `label_text` (spec 4.2.1.1) for canvas drawing by
+   label-layer.js. Labels are NOT Leaflet tooltips: a permanent
+   tooltip is a DOM node Leaflet repositions synchronously inside
+   every zoom step, which profiled at ~1.0-1.2s per step with 1,530
+   labeled points - see label-layer.js for the measurement and the
+   canvas approach that replaced it. anchorGap mirrors the old
+   tooltip offset (label bottom sits that many px above the marker
+   center). */
 function bindStyledLabel(marker, labelText, markerStyle, labelStyle) {
   if (!labelText) return;
   var radius = (markerStyle.size || 8) / 2;
-  marker.bindTooltip(String(labelText), {
-    permanent: true,
-    direction: 'top',
-    className: 'fag-label',
-    offset: [0, -(radius + 4)],
-  });
-  applyLabelTextStyle(marker, labelStyle);
-  FAG_LABEL_REGISTRY.push(marker);
-}
-
-function applyLabelTextStyle(marker, labelStyle) {
-  if (!labelStyle) return;
-  marker.on('tooltipopen', function (e) {
-    var el = e.tooltip.getElement();
-    if (!el) return;
-    el.style.fontFamily = labelStyle.fontFamily || '';
-    el.style.fontSize = (labelStyle.fontSize || 12) + 'px';
-    el.style.color = labelStyle.color || '#333333';
-    el.style.fontWeight = labelStyle.bold ? '700' : '400';
-    if (labelStyle.buffer) {
-      var w = labelStyle.buffer.width || 0;
-      var c = labelStyle.buffer.color || '#ffffff';
-      el.style.textShadow = buildHaloShadow(w, c);
-    }
+  FAG_LABEL_REGISTRY.push({
+    marker: marker,
+    text: String(labelText),
+    labelStyle: labelStyle,
+    anchorGap: radius + 4,
   });
 }
 
@@ -198,26 +180,6 @@ function buildGenericPopupHtml(props) {
     }).join('');
   if (!rows) return '';
   return '<div class="fag-popup">' + rows + '</div>';
-}
-
-/* Approximates a true text-stroke halo with layered text-shadows: 12
-   directions around the circle, each at radius w plus a couple of
-   tighter inner rings, so the result reads as a soft round outline
-   instead of the blocky diamond four corner-shadows produce. */
-function buildHaloShadow(w, color) {
-  if (!w) return 'none';
-  var shadows = [];
-  var rings = w <= 1.5 ? [w] : [w, w * 0.6];
-  var steps = 12;
-  rings.forEach(function (r) {
-    for (var i = 0; i < steps; i++) {
-      var angle = (Math.PI * 2 * i) / steps;
-      var dx = (r * Math.cos(angle)).toFixed(2);
-      var dy = (r * Math.sin(angle)).toFixed(2);
-      shadows.push(dx + 'px ' + dy + 'px 0 ' + color);
-    }
-  });
-  return shadows.join(',');
 }
 
 function escapeHtml(str) {
