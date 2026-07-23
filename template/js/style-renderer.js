@@ -55,13 +55,35 @@ function createStyledMarker(latlng, style, interactive) {
   }
 
   // Every non-circle shape (square/diamond/triangle/star/cross) is a
-  // plain colored span whose outline comes from its CSS class's
-  // clip-path/transform - so the QGIS symbol's fill color applies
-  // uniformly via background (the triangle previously used the CSS
-  // border trick, which hardcoded its color and ignored this).
+  // colored span clipped/rotated by its CSS class (.fag-shape-<shape>).
+  // v0.3.0 task 2-5: QGIS's stroke was never drawn for these shapes at
+  // all (only circleMarker's `color`/`weight` options rendered a
+  // border) - fixed by stacking two same-shape spans: a full-size one
+  // in strokeColor "behind", and a fill-color one inset by strokeWidth
+  // on every side "in front", so the strokeColor rim shows as a ring
+  // that follows the shape's own outline. They're siblings inside a
+  // plain (untransformed) wrapper rather than nested - nesting a
+  // shape-classed span (which carries its own `transform: rotate(...)`
+  // for diamond) inside another instance of the same class would
+  // compound the rotation (e.g. diamond ending up at 90deg instead of
+  // 45deg); as siblings, each applies its single rotation independently
+  // around the same center point, staying concentric.
   var shapeClass = 'fag-shape-' + style.shape;
-  var html = '<span class="' + shapeClass + '" style="width:' + size + 'px;height:' + size +
+  var innerSize = Math.max(size - strokeWidth * 2, 0);
+  var innerOffset = (size - innerSize) / 2;
+  var fillSpan = '<span class="' + shapeClass + '" style="position:absolute;left:' + innerOffset +
+    'px;top:' + innerOffset + 'px;width:' + innerSize + 'px;height:' + innerSize +
     'px;background:' + color + ';opacity:' + opacity + '"></span>';
+  var html;
+  if (strokeWidth > 0) {
+    var strokeSpan = '<span class="' + shapeClass + '" style="position:absolute;left:0;top:0;width:' +
+      size + 'px;height:' + size + 'px;background:' + strokeColor + ';opacity:' + opacity + '"></span>';
+    html = '<span style="position:relative;display:block;width:' + size + 'px;height:' + size +
+      'px;">' + strokeSpan + fillSpan + '</span>';
+  } else {
+    html = '<span style="position:relative;display:block;width:' + size + 'px;height:' + size +
+      'px;">' + fillSpan + '</span>';
+  }
   var icon = L.divIcon({
     className: 'fag-marker-icon',
     html: html,
