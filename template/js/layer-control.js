@@ -10,9 +10,7 @@
    generic "all attributes" popup since there's no curated field
    mapping yet. */
 function initLayerControl(map, layersConfig, layersData, layersStyleData, popupTrigger) {
-  var hasBasemap = !!map.fagBasemapLayer;
-  var hasLayers = !!(layersConfig && layersConfig.length);
-  if (!hasBasemap && !hasLayers) return;
+  if (!layersConfig || !layersConfig.length) return;
 
   var panel = document.getElementById('layer-panel');
   var listEl = document.getElementById('layer-panel-list');
@@ -33,16 +31,6 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
   // entirely - a fast swipe/drag off the map edge doesn't always
   // deliver a clean mouseout to whatever feature was last hovered.
   map.on('mouseout', fagResetActiveHover);
-
-  // v0.3.0 task 2-2: the single background basemap tile layer (chosen
-  // on 表示設定 - see map-core.js's BASEMAP_DEFS) previously had no way
-  // to hide it once published. Its own toggle entry sits at the top of
-  // this panel, above the per-layer list, whenever a basemap exists.
-  if (hasBasemap) {
-    addBasemapToggleItem(map, listEl);
-  }
-
-  if (!hasLayers) return;
 
   // Spread exact-duplicate-coordinate points apart *before* any layer
   // is built - must run across every marker layer together, not one at
@@ -86,27 +74,6 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
   });
 
   renderLayerTree(tree, listEl, map);
-}
-
-/* v0.3.0 task 2-2: on/off toggle for the single background basemap
-   tile layer (map.fagBasemapLayer, set by map-core.js's initMap).
-   Reuses the existing checkerboard `.fag-legend-tile` swatch style
-   already used for raster/XYZ tile legend entries, so it looks
-   consistent with the rest of the panel without new CSS. */
-function addBasemapToggleItem(map, listEl) {
-  var li = document.createElement('li');
-  li.innerHTML = '<input type="checkbox" id="layer-toggle-basemap" checked>' +
-    '<span class="fag-legend-swatch fag-legend-tile"></span>' +
-    '<label for="layer-toggle-basemap"></label>';
-  li.querySelector('label').textContent = '背景地図';
-  li.querySelector('input').addEventListener('change', function (e) {
-    if (e.target.checked) {
-      map.fagBasemapLayer.addTo(map);
-    } else {
-      map.removeLayer(map.fagBasemapLayer);
-    }
-  });
-  listEl.appendChild(li);
 }
 
 function renderLayerTree(node, containerEl, map) {

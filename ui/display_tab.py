@@ -107,12 +107,23 @@ class DisplayTab(QWidget):
         root.addWidget(grp_view)
 
         grp_basemap = QGroupBox(self.tr('背景地図（ベースマップ）'))
-        lay_basemap = QHBoxLayout(grp_basemap)
-        lay_basemap.addWidget(QLabel(self.tr('地図タイル:')))
+        lay_basemap = QVBoxLayout(grp_basemap)
+        # v0.3.0 task 2-2: whether to publish a basemap at all is
+        # decided here, before generating the site - NOT as an on/off
+        # toggle inside the generated HTML's own layer panel (spec
+        # feedback: a runtime toggle there was confusing/unwanted).
+        self.chk_basemap = QCheckBox(self.tr('背景地図を表示する'))
+        self.chk_basemap.setChecked(True)
+        self.chk_basemap.toggled.connect(self._update_basemap_enabled)
+        lay_basemap.addWidget(self.chk_basemap)
+        row_basemap = QHBoxLayout()
+        row_basemap.addWidget(QLabel(self.tr('地図タイル:')))
         self.cb_basemap = QComboBox()
         for key, label in BASEMAP_OPTIONS:
             self.cb_basemap.addItem(self.tr(label), key)
-        lay_basemap.addWidget(self.cb_basemap, 1)
+        row_basemap.addWidget(self.cb_basemap, 1)
+        lay_basemap.addLayout(row_basemap)
+        self._update_basemap_enabled()
         root.addWidget(grp_basemap)
 
         grp_popup = QGroupBox(self.tr('ポップアップ・ホバー動作・帰属表示'))
@@ -147,6 +158,9 @@ class DisplayTab(QWidget):
         enabled = self.rb_fixed.isChecked()
         self.sp_width.setEnabled(enabled)
         self.sp_height.setEnabled(enabled)
+
+    def _update_basemap_enabled(self):
+        self.cb_basemap.setEnabled(self.chk_basemap.isChecked())
 
     def _update_manual_enabled(self):
         enabled = self.rb_manual.isChecked()
@@ -183,6 +197,7 @@ class DisplayTab(QWidget):
             'minZoom': self.sp_min_zoom.value(),
             'maxZoom': self.sp_max_zoom.value(),
             'basemap': self.cb_basemap.currentData(),
+            'basemapEnabled': self.chk_basemap.isChecked(),
             'popupTrigger': (
                 'hover' if self.rb_popup_hover.isChecked()
                 else 'none' if self.rb_popup_none.isChecked()

@@ -46,6 +46,7 @@ def build_config(settings):
             'minZoom': display['minZoom'],
             'maxZoom': display['maxZoom'],
             'basemap': display.get('basemap') or 'carto_light',
+            'basemapEnabled': bool(display.get('basemapEnabled', True)),
             'popupTrigger': display.get('popupTrigger') or 'click',
             'attribution': display.get('attribution') or '',
         },
