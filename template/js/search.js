@@ -1,9 +1,10 @@
-/* Cross-layer text search (v0.3.0 task 3-1). Reuses whichever
-   attributes are already visible in each layer's ポップアップ項目
-   picker (ui/field_dialog.py) rather than adding a separate field
-   picker for search - core/geojson_writer.py never writes hidden
-   fields to the GeoJSON in the first place, so Object.keys(properties)
-   already *is* "the fields configured as visible" for that layer.
+/* Cross-layer text search (v0.3.0 task 3-1), lives inside #app-header
+   next to the title. Reuses whichever attributes are already visible
+   in each layer's ポップアップ項目 picker (ui/field_dialog.py) rather
+   than adding a separate field picker for search -
+   core/geojson_writer.py never writes hidden fields to the GeoJSON in
+   the first place, so Object.keys(properties) already *is* "the
+   fields configured as visible" for that layer.
 
    Matches only features whose OWNING LAYER IS CURRENTLY VISIBLE ON THE
    MAP (checked in #layer-panel) - a result for a hidden layer would
@@ -16,6 +17,7 @@ function initSearch(config, map) {
 
   var panel = document.getElementById('search-panel');
   var input = document.getElementById('search-input');
+  var dropdown = document.getElementById('search-dropdown');
   var countEl = document.getElementById('search-count');
   var resultsEl = document.getElementById('search-results');
   if (!panel || !input || !resultsEl) return;
@@ -26,19 +28,6 @@ function initSearch(config, map) {
   if (!searchableLayers.length) return; // nothing with attributes to search (e.g. tile-only project)
 
   panel.classList.remove('fag-hidden');
-
-  // Same technique as label-layer.js's addLabelToggleControl: attach
-  // the existing static panel into Leaflet's own topleft control
-  // stack so it lines up under the zoom/label buttons without any
-  // hardcoded offset math, and stop map click/scroll-zoom from firing
-  // while the user is interacting with the panel itself.
-  var control = L.control({ position: 'topleft' });
-  control.onAdd = function () {
-    L.DomEvent.disableClickPropagation(panel);
-    L.DomEvent.disableScrollPropagation(panel);
-    return panel;
-  };
-  control.addTo(map);
 
   var RESULT_LIMIT = 50;
   var DEBOUNCE_MS = 120;
@@ -54,10 +43,12 @@ function initSearch(config, map) {
     if (!keyword) {
       renderResults([]);
       countEl.classList.add('fag-hidden');
+      dropdown.classList.add('fag-hidden');
       return;
     }
     renderResults(findMatches(keyword));
     countEl.classList.remove('fag-hidden');
+    dropdown.classList.remove('fag-hidden');
   }
 
   function findMatches(keyword) {
@@ -126,7 +117,20 @@ function initSearch(config, map) {
       match.layerConfig.label + (sub ? ' ・ ' + sub : '');
     li.addEventListener('click', function () {
       focusFeature(map, match.layerConfig.id, match.entry);
+      dropdown.classList.add('fag-hidden');
     });
     return li;
   }
+
+  // Now that the dropdown floats below the header instead of being
+  // its own always-visible map panel, it needs to close itself when
+  // the user clicks anywhere else (the map, another panel) - a click
+  // on the input itself re-opens it via runSearch if there's already
+  // a keyword.
+  document.addEventListener('click', function (e) {
+    if (!panel.contains(e.target)) dropdown.classList.add('fag-hidden');
+  });
+  input.addEventListener('focus', function () {
+    if (input.value.trim()) dropdown.classList.remove('fag-hidden');
+  });
 }
