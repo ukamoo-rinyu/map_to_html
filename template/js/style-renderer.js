@@ -11,6 +11,40 @@
    regardless of module load order within the bundled <script>. */
 var FAG_LABEL_REGISTRY = [];
 
+/* Paths whose stroke width is a real-world size (QGIS マップ単位/
+   メートル(地図単位) line widths - e.g. a road layer whose line width
+   IS the road's actual width) rather than a fixed screen px. Leaflet
+   only takes px weights, so these get their weight recomputed from
+   meters on every zoom change (layer-control.js wires the zoomend
+   handler): px = meters / (ground meters per screen pixel at the
+   map's center latitude). Entries are {path, meters}. */
+var FAG_MAPUNIT_PATHS = [];
+
+// Web-Mercator ground resolution at zoom 0 with 256px tiles:
+// earth circumference 40075016.686m / 256px.
+var FAG_MERCATOR_M_PER_PX_Z0 = 156543.03392;
+
+function fagMapUnitWeight(map, meters) {
+  var lat = map.getCenter().lat * Math.PI / 180;
+  var metersPerPixel = FAG_MERCATOR_M_PER_PX_Z0 * Math.abs(Math.cos(lat)) /
+    Math.pow(2, map.getZoom());
+  // Floor at a hairline rather than 0 so a zoomed-out road layer stays
+  // faintly visible (matching how QGIS still draws sub-pixel-wide map
+  // unit lines as thin hairlines instead of dropping them).
+  return Math.max(0.5, meters / metersPerPixel);
+}
+
+function fagUpdateMapUnitWeights(map) {
+  FAG_MAPUNIT_PATHS.forEach(function (entry) {
+    var weight = fagMapUnitWeight(map, entry.meters);
+    // bindHoverHighlight reads _fagBaseWeight (when set) instead of its
+    // own bind-time snapshot, so hover emphasis and mouseout-reset both
+    // track the current zoom's weight instead of a stale one.
+    entry.path._fagBaseWeight = weight;
+    entry.path.setStyle({ weight: weight });
+  });
+}
+
 // A raw QGIS marker size (often ~8px diameter) is fine to look at but
 // too small to reliably tap on a phone. Verified via profiling (real
 // ~570-feature dataset, canvas renderer + zoomAnimation:false already
@@ -145,15 +179,22 @@ function bindHoverHighlight(interactiveLayer, visualLayer) {
     // Snapshot the true baseline once, up front - NOT inside the
     // mouseover handler - so repeated mouseovers always compute from
     // the same fixed values instead of ratcheting darker each time.
+    // Map-unit paths are the one exception: their true base weight
+    // changes on every zoom (fagUpdateMapUnitWeights stamps it onto
+    // _fagBaseWeight), so a fixed snapshot would restore a stale
+    // zoom's width on mouseout - read the stamp when present.
     var original = { weight: target.options.weight, fillOpacity: target.options.fillOpacity };
+    var baseWeight = function () {
+      return target._fagBaseWeight !== undefined ? target._fagBaseWeight : original.weight;
+    };
     var reset = function () {
-      target.setStyle(original);
+      target.setStyle({ weight: baseWeight(), fillOpacity: original.fillOpacity });
       if (FAG_ACTIVE_HOVER && FAG_ACTIVE_HOVER.reset === reset) FAG_ACTIVE_HOVER = null;
     };
     interactiveLayer.on('mouseover', function () {
       fagResetActiveHover();
       target.setStyle({
-        weight: (original.weight || 1) + 2,
+        weight: (baseWeight() || 1) + 2,
         fillOpacity: Math.min(1, (original.fillOpacity || 0) + 0.15),
       });
       // Deliberately NOT calling target.bringToFront() here (removed

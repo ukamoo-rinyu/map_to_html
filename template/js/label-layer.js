@@ -39,6 +39,13 @@ var FAG_LABEL_COLLISION_INSET_Y = 0.25;
 
 var FAG_LABEL_PLACEMENTS = [];
 
+// v0.3.0 UX request: an on/off button on the map itself for all
+// labels at once (independent of the per-layer checkboxes in
+// #layer-panel, which only ever hide/show a layer's markers - the
+// label canvas is shared across every layer, so this is a single flag
+// rather than something layer-control.js could toggle per layer).
+var FAG_LABELS_ENABLED = true;
+
 function initLabelLayer(map) {
   var pane = map.createPane('fag-labels');
   // Above markerPane (600) so labels overlay markers, below popupPane
@@ -65,6 +72,35 @@ function initLabelLayer(map) {
   // single redraw.
   map.on('zoomend moveend resize layeradd layerremove', schedule);
   schedule();
+
+  addLabelToggleControl(map, schedule);
+}
+
+/* A Leaflet control button (same leaflet-bar look as the zoom
+   buttons, so it doesn't need its own bespoke positioning/styling)
+   that flips FAG_LABELS_ENABLED and asks for a redraw - `schedule` is
+   passed in directly from initLabelLayer's closure rather than
+   re-deriving the canvas/ctx here. */
+function addLabelToggleControl(map, schedule) {
+  var control = L.control({ position: 'topleft' });
+  control.onAdd = function () {
+    var container = L.DomUtil.create('div', 'leaflet-bar fag-label-toggle');
+    var button = L.DomUtil.create('a', '', container);
+    button.href = '#';
+    button.title = 'ラベル表示切り替え';
+    button.setAttribute('role', 'button');
+    button.setAttribute('aria-label', 'ラベル表示切り替え');
+    button.textContent = 'Aa';
+    L.DomEvent.on(button, 'click', function (e) {
+      L.DomEvent.stop(e);
+      FAG_LABELS_ENABLED = !FAG_LABELS_ENABLED;
+      button.classList.toggle('fag-label-toggle-off', !FAG_LABELS_ENABLED);
+      schedule();
+    });
+    L.DomEvent.disableClickPropagation(container);
+    return container;
+  };
+  control.addTo(map);
 }
 
 function redrawLabels(map, canvas, ctx) {
@@ -85,6 +121,16 @@ function redrawLabels(map, canvas, ctx) {
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, size.x, size.y);
+
+  // Labels toggled off: leave the canvas cleared and no placements
+  // registered (so a click can't hit a label that isn't drawn - see
+  // initLabelClickPopup below) rather than skipping the resize/
+  // position update above, which still needs to happen so the canvas
+  // is correctly sized/placed the moment labels are turned back on.
+  if (!FAG_LABELS_ENABLED) {
+    FAG_LABEL_PLACEMENTS = [];
+    return;
+  }
 
   var placements = computeLabelPlacements(map, size);
   FAG_LABEL_PLACEMENTS = placements;

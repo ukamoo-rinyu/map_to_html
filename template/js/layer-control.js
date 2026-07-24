@@ -9,6 +9,51 @@
    resolveCategoryStyle/buildStyledLayer below). Every feature gets a
    generic "all attributes" popup since there's no curated field
    mapping yet. */
+
+/* {layerId: {fid: {feature, layer}}} - every feature from every
+   geometry layer (marker/line/fill; tile layers have no attributes so
+   they're never registered here), keyed by the auto-incrementing
+   '_fid' core/geojson_writer.py always writes. search.js (v0.3.0 task
+   3-1, cross-layer) and point-list.js (task 3-2, per-layer feature
+   table) both use this to go from "a GeoJSON feature the user picked
+   in a list/table row" back to the actual Leaflet layer to zoom to
+   and open the popup of - `layer` is exactly what bindPopupIfAny
+   below bound the popup to, so .openPopup() on it is a safe no-op if
+   this layer's ポップアップ表示 is off (same as initLabelClickPopup
+   in label-layer.js relies on). */
+var FAG_FEATURES_BY_LAYER = {};
+
+function registerFeature(layerId, feature, layer) {
+  var fid = feature.properties && feature.properties._fid;
+  if (fid === undefined || fid === null) return;
+  if (!FAG_FEATURES_BY_LAYER[layerId]) FAG_FEATURES_BY_LAYER[layerId] = {};
+  FAG_FEATURES_BY_LAYER[layerId][fid] = { feature: feature, layer: layer };
+}
+
+/* Shared by search.js (task 3-1) and point-list.js (task 3-2): zoom to
+   and open the popup of one FAG_FEATURES_BY_LAYER entry, regardless of
+   geometry type. If the owning layer is currently toggled off in
+   #layer-panel (the feature table can list a hidden layer - search
+   results can't, they're pre-filtered to visible layers only, so this
+   is a no-op for search), checks its checkbox first and dispatches the
+   same 'change' event renderLayerTree's own listener reacts to, so the
+   layer is actually added to the map before openPopup (which otherwise
+   silently no-ops without a map) runs. */
+function focusFeature(map, layerId, entry) {
+  var checkbox = document.getElementById('layer-toggle-' + layerId);
+  if (checkbox && !checkbox.checked) {
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new Event('change'));
+  }
+  var layer = entry.layer;
+  if (layer.getLatLng) {
+    map.setView(layer.getLatLng(), Math.max(map.getZoom(), 16));
+  } else if (layer.getBounds) {
+    map.fitBounds(layer.getBounds(), { maxZoom: 17 });
+  }
+  if (layer.openPopup) layer.openPopup();
+}
+
 function initLayerControl(map, layersConfig, layersData, layersStyleData, popupTrigger) {
   if (!layersConfig || !layersConfig.length) return;
 
@@ -59,7 +104,7 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
     // removes it from hit-testing entirely, so clicks/hover pass
     // through to whatever's actually underneath.
     var layerInteractive = layerConfig.showPopup !== false;
-    var layerGroup = buildStyledLayer(geojson, styleData, popupTrigger, layerInteractive);
+    var layerGroup = buildStyledLayer(geojson, styleData, popupTrigger, layerInteractive, layerConfig.id);
     if (layerConfig.defaultVisible) layerGroup.addTo(map);
     // v0.3.0 spec feedback: even with the population/table order fixed
     // so layersConfig is genuinely back-to-front (data_tab.py task
@@ -90,6 +135,16 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
     });
     node.items.push({ config: layerConfig, layerGroup: layerGroup, style: styleData.defaultStyle || {} });
   });
+
+  // Map-unit stroke widths (real-world meters, see style-renderer.js's
+  // FAG_MAPUNIT_PATHS): resolve them to px for the initial zoom now
+  // that every layer is built, then keep them tracking the zoom level
+  // so zooming out shrinks them exactly like QGIS's マップ単位 widths
+  // (instead of a constant screen thickness swallowing the whole map).
+  if (FAG_MAPUNIT_PATHS.length) {
+    fagUpdateMapUnitWeights(map);
+    map.on('zoomend', function () { fagUpdateMapUnitWeights(map); });
+  }
 
   renderLayerTree(tree, listEl, map);
 }
@@ -293,7 +348,7 @@ function spreadOverlappingPointsAcrossLayers(layersConfig, layersData, layersSty
   });
 }
 
-function buildStyledLayer(geojson, styleData, popupTrigger, interactive) {
+function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId) {
   var style = (styleData && styleData.defaultStyle) || {};
   var byCategory = (styleData && styleData.byCategory) || null;
   // データ設定 tab's per-layer "ポップアップ表示" checkbox, unchecked.
@@ -336,6 +391,7 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive) {
         var visual = marker.fagVisual || marker;
         bindStyledLabel(hit, props.label_text, markerStyle, labelStyle);
         hit.fagLabelMultiDirection = !!feature.__fagSpread;
+        registerFeature(layerId, feature, hit);
         if (interactive) {
           bindPopupIfAny(hit, props, popupTrigger);
           if (popupTrigger !== 'none') bindHoverHighlight(hit, visual);
@@ -359,6 +415,18 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive) {
         };
       },
       onEachFeature: function (feature, layer) {
+        registerFeature(layerId, feature, layer);
+        // widthMeters = QGIS マップ単位 width (a real-world size, e.g.
+        // a road drawn at its actual width). The px weight for it is
+        // zoom-dependent, recomputed by fagUpdateMapUnitWeights -
+        // initLayerControl runs it once after all layers are built
+        // (before that this feature keeps the fallback px width from
+        // style() above) and again on every zoomend.
+        var resolved = resolveCategoryStyle(byCategory, (feature && feature.properties) || {});
+        var lineStyle = (resolved && resolved.line) || style.line;
+        if (lineStyle.widthMeters) {
+          FAG_MAPUNIT_PATHS.push({ path: layer, meters: lineStyle.widthMeters });
+        }
         if (!interactive) return;
         bindPopupIfAny(layer, feature.properties, popupTrigger);
         if (popupTrigger !== 'none') bindHoverHighlight(layer);
@@ -390,6 +458,13 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive) {
         };
       },
       onEachFeature: function (feature, layer) {
+        registerFeature(layerId, feature, layer);
+        // Same map-unit scheme as the line branch, for polygon outlines.
+        var resolved = resolveCategoryStyle(byCategory, (feature && feature.properties) || {});
+        var fillStyle = (resolved && resolved.fill) || style.fill;
+        if (fillStyle.strokeWidthMeters) {
+          FAG_MAPUNIT_PATHS.push({ path: layer, meters: fillStyle.strokeWidthMeters });
+        }
         if (!interactive) return;
         bindPopupIfAny(layer, feature.properties, popupTrigger);
         if (popupTrigger !== 'none') bindHoverHighlight(layer);

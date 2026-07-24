@@ -10,6 +10,17 @@ def _walk_layers(node, path, results):
         else:  # NodeLayer
             layer = child.layer()
             if isinstance(layer, QgsVectorLayer):
+                if not layer.isSpatial():
+                    # Table-only layer (no geometry column - e.g. a
+                    # plain CSV/DBF attribute table added to the
+                    # project). There's nothing to draw or place a
+                    # popup at, so it can't be published as a map
+                    # layer - excluding it here keeps it out of both
+                    # the picker dropdown and the auto-populated table
+                    # (spec feedback: it was showing up as an addable
+                    # "データ" layer even though generating with it
+                    # selected has nothing to render).
+                    continue
                 layer_type = 'vector'
             elif isinstance(layer, QgsRasterLayer):
                 layer_type = 'raster'

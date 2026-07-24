@@ -66,6 +66,8 @@ html, body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 40px;
+  flex: 0 1 auto;
 }
 
 /* ---- Body: map fills the remaining space ---- */
@@ -115,6 +117,21 @@ html, body {
    non-circle marker shapes need this; circleMarker/line/polygon
    highlight via Leaflet's own setStyle in style-renderer.js instead ---- */
 .fag-marker-hover { transform: scale(1.3); filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.5)); }
+
+/* ---- Label on/off button (map-wide, next to the zoom control -
+   reuses Leaflet's own .leaflet-bar look via the "a" element in
+   label-layer.js, only the "off" state needs its own rule) ---- */
+.fag-label-toggle a {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-color);
+  text-decoration: none;
+}
+.fag-label-toggle a.fag-label-toggle-off {
+  color: var(--muted-color);
+  background: var(--bg-color);
+  text-decoration: line-through;
+}
 
 /* ---- Layer toggle panel (spec 3.1, レイヤーリスト) ---- */
 #layer-panel {
@@ -227,6 +244,198 @@ html, body {
 .fag-popup-label { color: var(--muted-color); flex: 0 0 auto; }
 .fag-popup-value { color: var(--text-color); }
 
+/* ---- Search panel (v0.3.0 task 3-1) - lives inside #app-header next
+   to the title (search.js does no positioning of its own; this is
+   its only home). The input keeps a fixed light background/border
+   regardless of the header's own (user-configurable, spec 出力設定)
+   bg/text color, the same way a search box in a colored site navbar
+   usually does, so it reads clearly no matter what color the header
+   ends up. The results dropdown hangs below it via #search-dropdown,
+   right-aligned under the input, above the map (z-index above
+   #layer-panel/#feature-table-panel's 1000). ---- */
+#search-panel {
+  position: relative;
+  flex: 0 1 280px;
+  min-width: 100px;
+  margin-left: auto;
+}
+#search-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--panel-bg);
+  color: var(--text-color);
+}
+#search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  font-size: 12px;
+  z-index: 1100;
+}
+#search-count { display: block; padding: 6px 8px; color: var(--muted-color); border-bottom: 1px solid var(--border-color); }
+
+#search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.fag-search-result {
+  padding: 6px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color);
+}
+.fag-search-result:last-child { border-bottom: none; }
+.fag-search-result:hover { background: var(--bg-color); }
+.fag-search-result-name { color: var(--text-color); font-weight: 700; }
+.fag-search-result-sub {
+  color: var(--muted-color);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fag-search-more { padding: 6px 8px; color: var(--muted-color); font-size: 11px; text-align: center; }
+
+/* ---- Feature table (v0.3.0 task 3-2) - a left-side panel (spec
+   feedback: prefer it over the map's left edge rather than a full-
+   width bottom drawer). Anchored to the BOTTOM-left corner (spec
+   feedback: stand by as a small bar there, expand upward when opened)
+   rather than the top, so it stays clear of Leaflet's own topleft
+   control stack (zoom buttons + label on/off button) regardless of
+   how tall the expanded table gets. column-reverse flips the visual
+   stacking order without reordering the DOM: #feature-table-header
+   (first child) ends up pinned at the bottom, #feature-table-scroll
+   (second child) sits above it - so growing the scroll area's content
+   pushes the panel's TOP edge up while its bottom stays anchored,
+   which is what "collapsed at the bottom, expands upward" means with
+   a `bottom`-anchored absolutely positioned box. Wider than
+   #layer-panel since a multi-column table needs real width; starts
+   collapsed (.fag-collapsed, set in base.html) so it doesn't eat map
+   space until opened, same collapse pattern as #layer-panel
+   (max-height swap + inner content display:none). ---- */
+#feature-table-panel {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 1000;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column-reverse;
+  width: 360px;
+  max-width: calc(100vw - 20px);
+  /* 100vh minus: header height (56px; taller once #app-header wraps
+     under 768px, so this runs a little short there - not worth a JS
+     measurement for that edge case) + a 10px gap above the panel to
+     match its own 10px bottom/left offset. */
+  max-height: calc(100vh - 76px);
+}
+#feature-table-panel.fag-collapsed { max-height: none; }
+#feature-table-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  flex: 0 0 auto;
+}
+#feature-table-layer-select {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-color);
+}
+#feature-table-count { color: var(--muted-color); white-space: nowrap; }
+#feature-table-toggle {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px 6px;
+  color: var(--muted-color);
+  transition: transform 0.15s ease;
+}
+#feature-table-panel.fag-collapsed #feature-table-toggle { transform: rotate(-90deg); }
+#feature-table-panel.fag-collapsed #feature-table-scroll { display: none; }
+
+#feature-table-scroll {
+  flex: 1 1 auto;
+  overflow: auto;
+  /* Sits visually ABOVE the header (column-reverse) - the border
+     between them belongs on this element's bottom edge now. */
+  border-bottom: 1px solid var(--border-color);
+  min-height: 0;
+}
+.fag-table-row {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  box-sizing: border-box;
+}
+.fag-table-row-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 700;
+  color: var(--muted-color);
+}
+.fag-table-row:not(.fag-table-row-head) {
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+}
+.fag-table-row:not(.fag-table-row-head):hover { background: var(--bg-color); }
+.fag-table-cell {
+  flex: 0 0 auto;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+/* ---- Sortable column headers - click toggles asc/desc (no third
+   "unsorted" state) ---- */
+.fag-table-cell-head {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+.fag-table-cell-head:hover { color: var(--text-color); }
+.fag-table-head-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fag-table-sort-arrow {
+  flex: 0 0 auto;
+  font-size: 9px;
+  color: var(--accent-color);
+}
+#feature-table-spacer { position: relative; }
+#feature-table-rows { position: absolute; top: 0; left: 0; width: 100%; }
+
 /* ---- Responsive layout (Tab 2 "responsive", default ON) ---- */
 @media (max-width: 768px) {
   #app.responsive #app-header {
@@ -234,5 +443,9 @@ html, body {
     flex-wrap: wrap;
     padding: 8px 12px;
     gap: 8px;
+  }
+  #app.responsive #search-panel {
+    flex: 1 1 100%;
+    margin-left: 0;
   }
 }

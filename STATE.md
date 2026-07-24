@@ -5,6 +5,225 @@
 
 ---
 
+## 2026-07-25: v0.3.0 リリース
+
+**ブランチ**: `sonnet/search-and-feature-table` → `main`にマージ
+**担当**: Claude Code標準（Sonnet）
+
+ユーザーが実機（QGIS）で検索・一覧表・マップ単位線幅の挙動を確認、
+v0.3.0としてリリース指示。`metadata.txt`を0.3.0に更新し、QGIS公式
+リポジトリ向けの英語changelogを`changelog=`セクションとして追加
+（公式リポジトリは0.2.0からの更新になるため、0.2.1の内容も0.3.0の
+項目に含めて記載）。`about`の「Search/filter is planned」も実装済みの
+記述に更新。`main`へマージ後、`v0.3.0`タグを付けてGitHubへプッシュ、
+`git archive`で`map_to_html_v0.3.0.zip`を作成（従来と同じ
+`facility_app_generator/`プレフィックス構成）。
+
+---
+
+## 2026-07-24: マップ単位（メートル）の線幅に対応
+
+**ブランチ**: `sonnet/search-and-feature-table`
+**担当**: Claude Code標準（Sonnet）
+
+ユーザーからの相談: 道路レイヤーの線幅をmmではなくマップ単位にして
+「ズームアウトしても拡大されない」ようにしたが、HTML出力では引き継がれず
+太い線のまま出力される。マップ単位を維持できないか。
+
+### 原因（2つの問題が重なっていた）
+1. `style_extractor.py`の`_extract_line_style`が`symbol.widthUnit()`を
+   読もうとしていたが、**このメソッドはQgsLineSymbolには存在しない**
+   （単位はシンボルレイヤー`QgsSimpleLineSymbolLayer.widthUnit()`が持つ）。
+   `hasattr`チェックが常にFalseになり**ミリメートルと誤判定**、
+   「19.5マップ単位」→「19.5mm ≒ 74px」→上限20pxにクランプ、という
+   固定太線がズーム無関係に描かれていた（スクリーンショットのオレンジの塊）。
+2. そもそもマップ単位はズーム依存なので固定pxには変換できず、
+   `_to_px`は対応外の単位をフォールバック値に落とす設計だった。
+
+### 対応
+- **Python側** (`core/style_extractor.py`):
+  - 幅の単位をシンボルレイヤーから正しく読むよう修正。
+  - `RenderMetersInMapUnits`（実メートル）と`RenderMapUnits`（マップ単位）を
+    実世界メートルに換算して`widthMeters`（線）・`strokeWidthMeters`
+    （ポリゴン輪郭、両ブランチ）としてエクスポート。マップ単位→実メートルの
+    換算は`_meters_per_map_unit(layer)`：プロジェクトCRSがEPSG:3857なら
+    メルカトルの緯度歪みを補正（×cos(レイヤー中心の緯度)）、その他の
+    メートル系CRSなら1:1、度単位CRSなら換算不能としてpxフォールバック。
+  - 固定単位（mm/pt/px）は従来通りpx変換。カテゴリ別スタイルにも適用
+    （`_style_for_symbol`/`_extract_category_styles`にパラメータを伝搬）。
+- **JS側**:
+  - `style-renderer.js`: `FAG_MAPUNIT_PATHS`レジストリと
+    `fagUpdateMapUnitWeights(map)`。px幅 = メートル ÷（地図中心緯度での
+    1pxあたり実メートル数 `156543.03392×cos(lat)/2^zoom`）。下限0.5px
+    （QGISがサブピクセル幅をヘアラインで描き続けるのに合わせ、
+    ズームアウトで完全消滅はさせない）。
+  - `layer-control.js`: line/fillの`onEachFeature`で`widthMeters`/
+    `strokeWidthMeters`を持つパスをレジストリに登録。`initLayerControl`が
+    全レイヤー構築後に初回計算＋`map.on('zoomend')`で再計算。
+  - `bindHoverHighlight`（style-renderer.js）との干渉対策: ホバーの
+    基準太さをバインド時スナップショットではなく`_fagBaseWeight`
+    （`fagUpdateMapUnitWeights`がズームごとに更新）から読むようにし、
+    ズーム後のマウスアウトで古いズームの太さに戻るバグを予防。
+
+### 検証
+`gen_mapunit_test.py`（scratchpad）で幅員区分4カテゴリ×12本の道路
+（widthMeters: 19.5/13/5.5/3）＋50m輪郭ポリゴンのテストサイトを生成し
+ブラウザで確認: z14で19.5m道路=2.48px、z17で19.86px（実寸通り）、
+z10で0.5px下限、いずれも期待式と一致／`setZoom`の自然な`zoomend`でも
+再計算される／ホバーで+2px→マウスアウトで現在ズームの太さに正しく復帰。
+`node --check`・`flake8`通過。QGIS実機での抽出（単位の読み取り）は
+次回ユーザーテストで要確認。
+
+---
+
+## 2026-07-24: 一覧表の列ソート・ポップアップ連動フィルタ・配置の再修正
+
+**ブランチ**: `sonnet/search-and-feature-table`
+**担当**: Claude Code標準（Sonnet）
+
+前項（レイアウト見直し）の直後、さらにユーザーから3件のフィードバック。
+
+### 変更
+- **列ソート**: `point-list.js`の一覧表ヘッダーをクリックすると昇順⇔降順が
+  トグルする（3クリック目で元の順序に戻る、という第三状態は無し。spec
+  「昇順・降順のみでよい」）。数値として両辺がパースできれば数値比較、
+  それ以外は`localeCompare(..., 'ja')`。列を切り替えると昇順から再スタート。
+  レイヤー切替時はソート状態をリセット（別レイヤーには同名列が無いことが
+  あるため）。ヘッダーセルにソート方向の矢印（▲/▼）を表示。
+- **ポップアップ表示オフのレイヤーを検索・一覧表の対象外に**: `search.js`の
+  `searchableLayers`・`point-list.js`の`tableLayers`どちらも
+  `layerConfig.showPopup !== false`を追加条件にした。`showPopup:false`は
+  データ設定タブの「ポップアップ表示」チェックボックスに連動し、
+  `layer-control.js`がそのレイヤーをクリック/ホバー無効（`layerInteractive`）
+  にしているのと同じフラグ - 検索結果や一覧表の行をクリックしても開く
+  ポップアップが無いレイヤーを一覧に出しても意味がないため。両ファイルの
+  冒頭コメントと`README.md`の機能一覧にこの挙動を明記。
+- **一覧表パネルの配置を左下スタンバイに変更**: 前項で「地図左側」に
+  移動したばかりだったが、「左下にスタンバイで、展開したときに上に広がる
+  形に」という追加フィードバックを受け、`top:130px`アンカーから
+  `bottom:10px`アンカーに変更。`flex-direction: column-reverse`で
+  DOM順序（ヘッダー→スクロール領域）は変えずに見た目の重なりだけ反転させ、
+  ヘッダーをパネル下端に固定・スクロール領域をその上に表示。`bottom`基準の
+  絶対配置なので、展開して中身が増えるとパネルの上端だけが上に伸びる
+  （＝下端は動かないまま上に広がる）。これにより左上のズーム/ラベル
+  ON-OFFボタンとの衝突を気にする必要が無くなった（`top:130px`だった
+  ときの実測値ベースの補正コメントは不要になり削除）。
+
+### 検証
+`search_table_test.html`（1,531件データセット）を再生成しブラウザで確認:
+折りたたみ時は画面左下に高さ約34pxのバーとして待機／展開すると下端は
+710px（画面高720pxの10px上）のまま上端が66pxまで伸びる（＝上に広がる）／
+再度折りたたむと同じ位置の待機バーに戻る／列ヘッダークリックで
+昇順→降順（▼表示）に切り替わり実際の行順も反転することを確認。
+`showPopup !== false`の判定が実際に出力HTMLへ反映されていること（生成
+HTML内に3箇所出現：layer-control.jsの`layerInteractive`・table・search）を
+文字列検索で確認。`node --check`（point-list.js・search.js）通過。
+
+---
+
+## 2026-07-24: 検索バー・地物一覧表のレイアウトを見直し（実装直後のフィードバック）
+
+**ブランチ**: `sonnet/search-and-feature-table`
+**担当**: Claude Code標準（Sonnet）
+
+3-1/3-2実装直後のユーザーフィードバック: 「検索バーは、上のタイトルバーの中に
+配置」「一覧表は左側に寄せることはできる？」。
+
+### 変更
+- **検索バー**: 地図上のLeafletコントロール（左上、ズームボタンの下）から、
+  `#app-header`（タイトルバー）内・タイトルの右側に移動。ヘッダーの背景色は
+  出力設定タブでユーザーが自由に変更できるため、検索入力欄はヘッダー色に
+  依存しない固定の明るい背景（`--panel-bg`）にして、どんな配色でも読める
+  ようにした。結果リストは入力欄の下にドロップダウンとして表示（絶対配置、
+  `#search-dropdown`でラップ）。地図上のコントロールでなくなったため
+  `L.control`でのラップ・`disableClickPropagation`は不要になり削除。
+  外側クリックで閉じる・結果クリック後に閉じる・キーワードが残っている
+  状態で入力欄に再フォーカスすると再度開く、という一般的なドロップダウン
+  UXを追加。
+- **地物一覧表**: 画面下部の全幅ドロワーから、地図左側の縦長パネルに変更
+  （`#layer-panel`は右側にあるので左右対称のレイアウトに）。Leafletの
+  ズームコントロール＋ラベルON/OFFボタン（どちらも左上、合計約118px）の
+  下に来るよう`top: 130px`で配置（実測して確定、コメントに根拠を記載）。
+  `max-height: calc(100vh - 206px)`でビューポート下端に収まるようにした。
+
+### 検証
+Single-file出力の検証サイトをブラウザで再確認: 検索パネルが`#app-header`
+内に実際に配置されていること、地物一覧表パネルがラベルON/OFFボタンと
+重ならないこと（実測座標で確認）、展開時にビューポート下端に収まること
+（720pxウィンドウで514px高・下端700px、20pxの余白）、検索ドロップダウンの
+開閉（入力・外側クリック・結果クリック後・再フォーカス）が正しく動作する
+ことを確認済み。
+
+---
+
+## 2026-07-24: v0.3.0 タスク3-1（検索）・3-2（地物一覧表）を実装
+
+**ブランチ**: `sonnet/search-and-feature-table`（`sonnet/misc-fixes`の直後）
+**担当**: Claude Code標準（Sonnet）。設計・実装とも本セッションで実施
+（本来Fable 5が設計担当だったが今回は不参加のため）。詳細な設計判断は
+`C:\Users\ukawa\.claude\plans\proud-orbiting-melody.md`（承認済みプラン）を参照。
+
+### 前提として発見した問題
+`template/js/search.js`・`template/js/point-list.js`は元々存在したが、
+`core/html_builder.py`のJS_MODULE_ORDERに含まれておらず`main.js`からも
+呼ばれていない**未使用の死んだコード**だった。中身は`FAG.markersById`・
+`config.fields.idField`等、v0.2.0以前の「単一sitesレイヤー」時代の設計を
+前提にしており、現行の「レイヤーごとに独立したシンボロジ/フィールド設定を
+持つ複数レイヤー」アーキテクチャとは噛み合わない。両ファイルとも全面書き直し。
+
+### 実装内容
+- **設計方針**: 検索（3-1）はレイヤー横断・表示中レイヤーのみ対象。
+  一覧表（3-2）は選択した1レイヤーのみ・非表示レイヤーも選択可（選ぶと
+  自動でそのレイヤーを表示状態にする）。どちらも新しいフィールド選択UIは
+  追加せず、`ui/field_dialog.py`のポップアップ項目 設定…で既に選ばれている
+  フィールド（`core/geojson_writer.py`が実際にGeoJSONへ書き出す属性）を
+  そのまま検索対象・表示列として再利用。
+- `template/js/layer-control.js`に`FAG_FEATURES_BY_LAYER`
+  （`{layerId: {fid: {feature, layer}}}`、`_fid`はgeojson_writer.pyが
+  常に付与する安定連番）と`focusFeature(map, layerId, entry)`
+  （ズーム＋`openPopup()`、非表示レイヤーなら`#layer-panel`のチェックボックスを
+  自動でONにしてから）を追加。`buildStyledLayer`のmarker/line/fill
+  各分岐で`registerFeature`を呼ぶよう変更。
+- `template/js/search.js`: デバウンス付き入力、表示中レイヤーのみ対象に
+  全文字列検索、結果は上位50件のみ描画（残りは件数表示）、結果クリックで
+  `focusFeature`。パネルはLeaflet純正コントロールとして左上
+  （ズームボタン・ラベルON/OFFボタンの下）にスタック。
+- `template/js/point-list.js`: `initFeatureTable`。レイヤー選択
+  プルダウン、選択レイヤーの列（GeoJSON属性のキー順）、**自前実装の
+  固定行高仮想スクロール**（スクロール位置から表示範囲のみDOMに存在させる。
+  ヘッダー行は`position:sticky`で同一スクロールコンテナ内に置き、横スクロールを
+  ボディと共有）。1,530件（実データ想定）でスクロール位置→描画行の対応を
+  実機相当のブラウザテストで確認済み（後述）。
+- `ui/display_tab.py` / `core/config_builder.py`: 「検索バーを表示する」
+  「レイヤー内地物の一覧表を表示する」チェックボックス（デフォルト両方ON）→
+  `config.display.searchEnabled`/`featureTableEnabled`。
+- `core/html_builder.py`のJS_MODULE_ORDERに`search.js`・`point-list.js`を
+  `layer-control.js`/`label-layer.js`の後・`main.js`の前に追加。
+
+### 検証（ブラウザ、1,531件データセット、Single-file出力）
+検索: キーワードで正しく絞り込み／50件超で「ほか◯件」表示／結果クリックで
+ズーム＋ポップアップ／非表示レイヤーの地物は検索にヒットしないことを確認。
+一覧表: レイヤー切替で列・行が正しく差し替わる／1,531件で仮想スクロールが
+正しい範囲の行を描画（スクロール位置→行番号の対応を複数ポイントで確認）／
+行クリックでズーム＋ポップアップ（`showPopup:false`のレイヤーはズームのみ、
+ポップアップ開かず）／`searchEnabled`/`featureTableEnabled`を`false`にすると
+両パネルとも非表示になることを確認。
+
+**テスト時のハマりどころ（次回セッション向け）**: `split`出力
+（`config.js`/`layers.js`を別ファイルで参照）だと、このBrowserツール環境では
+regenerate後も**別ファイルの`<script src>`が古い内容のままキャッシュされ続ける**
+（`location.reload()`・Ctrl+Shift+R・新規タブでも直らない。手動`fetch(...,
+{cache:'no-store'})`は最新を取得できるのに、ブラウザの通常のスクリプト読み込み
+だけ古いまま）。原因不明だが再現性あり。回避策: 検証には`single`出力
+（HTML1ファイルに全部インライン）を使うこと - こちらは`location.reload()`で
+正しく最新化される。加えて、Browserペインが実際に画面表示されていない
+（`document.visibilityState==='hidden'`）ときは`requestAnimationFrame`が
+発火しないため、rAFに依存する再描画ロジックの検証は
+`window.requestAnimationFrame`を同期実行に一時差し替えてテストすること
+（本セッションでは`initFeatureTable`を再実行して確認した）。
+
+---
+
 ## 2026-07-23: ホバーのbringToFrontが重なり順優先度を恒久的に壊していた問題を修正
 
 **ブランチ**: `sonnet/v030-ux-fixes`

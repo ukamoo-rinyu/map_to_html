@@ -6,14 +6,22 @@ since it needs the other tabs' settings too."""
 import os
 
 from qgis.PyQt.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit,
-    QPushButton, QGroupBox, QRadioButton, QButtonGroup, QFileDialog,
-    QProgressBar, QColorDialog, QFontComboBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QComboBox,
+    QLineEdit, QPushButton, QGroupBox, QRadioButton, QButtonGroup,
+    QFileDialog, QProgressBar, QColorDialog, QFontComboBox,
 )
 from qgis.PyQt.QtGui import QColor
+from qgis.core import QgsSettings
 
 DEFAULT_TITLE_COLOR = '#ffffff'
 DEFAULT_HEADER_BG_COLOR = '#3b4656'
+
+# Cross-project, cross-session (QgsSettings, not the QGIS project file -
+# a title typed for one project is still useful to reuse in another)
+# history of past titles, most-recent-first, so retyping the same site
+# name every export isn't necessary.
+TITLE_HISTORY_KEY = 'facility_app_generator/recent_titles'
+TITLE_HISTORY_MAX = 10
 
 
 class OutputTab(QWidget):
@@ -28,9 +36,16 @@ class OutputTab(QWidget):
         root = QVBoxLayout(self)
 
         form = QFormLayout()
-        self.le_title = QLineEdit()
-        self.le_title.setPlaceholderText(self.tr('例: ○○マップ'))
-        form.addRow(self.tr('タイトル:'), self.le_title)
+        # Editable combo, not a plain line edit, so past titles (see
+        # TITLE_HISTORY_KEY) show up as a dropdown the user can pick
+        # from instead of retyping - free text entry still works the
+        # same as a QLineEdit either way.
+        self.cb_title = QComboBox()
+        self.cb_title.setEditable(True)
+        self.cb_title.addItems(self._load_title_history())
+        self.cb_title.setCurrentText('')
+        self.cb_title.lineEdit().setPlaceholderText(self.tr('例: ○○マップ'))
+        form.addRow(self.tr('タイトル:'), self.cb_title)
         root.addLayout(form)
 
         grp_theme = QGroupBox(self.tr('デザイン（タイトルバー）'))
@@ -151,9 +166,22 @@ class OutputTab(QWidget):
                 errors.append(self.tr('単一HTML方式の出力先はファイルパスを指定してください。'))
         return errors
 
+    def _load_title_history(self):
+        history = QgsSettings().value(TITLE_HISTORY_KEY, [])
+        return list(history) if history else []
+
+    def _remember_title(self, title):
+        if not title:
+            return
+        history = [t for t in self._load_title_history() if t != title]
+        history.insert(0, title)
+        QgsSettings().setValue(TITLE_HISTORY_KEY, history[:TITLE_HISTORY_MAX])
+
     def get_settings(self):
+        title = self.cb_title.currentText().strip()
+        self._remember_title(title)
         return {
-            'title': self.le_title.text().strip(),
+            'title': title,
             'output_format': 'split' if self.rb_split.isChecked() else 'single',
             'output_path': self.le_path.text().strip(),
             'theme': {

@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Build the config.json dict. This round only covers meta/display and
-the flat list of published layers (spec section 4, reworked at user
+"""Build the config.json dict (spec section 4, reworked at user
 request to match qgis2web's "show everything" model instead of a
 single search-target + reference-layer split). Per-layer field
-mapping and cross-layer search are deferred to a later round.
+mapping still lives on the layer itself (ui/field_dialog.py); search
+(searchEnabled) and the per-layer feature table (featureTableEnabled)
+reuse those same fields rather than adding their own picker.
 """
 import datetime
 
@@ -47,6 +48,8 @@ def build_config(settings):
             'maxZoom': display['maxZoom'],
             'basemap': display.get('basemap') or 'carto_light',
             'basemapEnabled': bool(display.get('basemapEnabled', True)),
+            'searchEnabled': bool(display.get('searchEnabled', True)),
+            'featureTableEnabled': bool(display.get('featureTableEnabled', True)),
             'popupTrigger': display.get('popupTrigger') or 'click',
             'attribution': display.get('attribution') or '',
         },
