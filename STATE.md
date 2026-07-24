@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-25: v0.3.0 リリース
+
+**ブランチ**: `sonnet/search-and-feature-table` → `main`にマージ
+**担当**: Claude Code標準（Sonnet）
+
+ユーザーが実機（QGIS）で検索・一覧表・マップ単位線幅の挙動を確認、
+v0.3.0としてリリース指示。`metadata.txt`を0.3.0に更新し、QGIS公式
+リポジトリ向けの英語changelogを`changelog=`セクションとして追加
+（公式リポジトリは0.2.0からの更新になるため、0.2.1の内容も0.3.0の
+項目に含めて記載）。`about`の「Search/filter is planned」も実装済みの
+記述に更新。`main`へマージ後、`v0.3.0`タグを付けてGitHubへプッシュ、
+`git archive`で`map_to_html_v0.3.0.zip`を作成（従来と同じ
+`facility_app_generator/`プレフィックス構成）。
+
+---
+
 ## 2026-07-24: マップ単位（メートル）の線幅に対応
 
 **ブランチ**: `sonnet/search-and-feature-table`

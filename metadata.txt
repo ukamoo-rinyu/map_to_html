@@ -2,11 +2,29 @@
 name=Map to HTML
 qgisMinimumVersion=3.16
 description=Publish any number of QGIS layers as a standalone Leaflet/HTML/JS web map, each keeping its own symbology and labels.
-version=0.2.1
+version=0.3.0
 author=rinyu
 email=ukamoo@gmail.com
 
-about=Pick any number of layers from the current QGIS project and export a self-contained web map (HTML + per-layer GeoJSON/style JSON) that runs in any browser without a server, qgis2web-style. Each layer's symbology (marker color/size/shape, line, fill, labels) is extracted from QGIS and carried over as-is, with a toggle panel to show/hide layers. Search/filter across layers is planned for a later iteration.
+about=Pick any number of layers from the current QGIS project and export a self-contained web map (HTML + per-layer GeoJSON/style JSON) that runs in any browser without a server, qgis2web-style. Each layer's symbology (marker color/size/shape, line, fill, labels) is extracted from QGIS and carried over as-is, with a toggle panel to show/hide layers, a cross-layer text search bar, and a sortable per-layer attribute table.
+
+changelog=0.3.0
+      - Cross-layer text search bar in the header; clicking a result zooms to the feature and opens its popup
+      - Per-layer attribute table (bottom-left panel): virtualized scrolling for 1,000+ features, sortable columns (asc/desc), row click zooms to the feature
+      - Search and the attribute table only cover layers whose popups are enabled
+      - Label on/off toggle button on the map
+      - Map-unit (meter) line/outline widths are preserved: lines now scale with zoom like in QGIS instead of exporting at a fixed screen width
+      - Canvas-rendered labels: smooth pan/zoom with 1,000+ labeled points; clicking a label opens the feature's popup
+      - Click/hover priority now follows the configured layer stacking order (points in front of reference polygons)
+      - Basemap on/off and per-layer raster/XYZ opacity are set in the plugin before export
+      - Layer order fixes: exported stacking order matches the QGIS layer panel, reorder buttons work correctly
+      - Outline (stroke) now rendered for square/diamond/triangle/cross/star markers
+      - Geometry-less (attribute-only) tables are no longer offered in the layer picker
+      - Title field remembers recent titles
+    0.2.1
+      - GitHub-only release; its changes are included in the 0.3.0 list above
+    0.2.0
+      - Multi-layer export with per-layer symbology/labels/popup fields
 
 tags=web,html,export,leaflet,search,facility,geojson
 category=Web
