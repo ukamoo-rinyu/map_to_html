@@ -22,6 +22,32 @@
         </div>
         <ul id="layer-panel-list"></ul>
       </div>
+      <div id="search-panel" class="fag-hidden">
+        <div id="search-panel-header">
+          <input type="text" id="search-input" placeholder="施設名などで検索…">
+          <span id="search-count" class="fag-hidden"></span>
+        </div>
+        <ul id="search-results" class="fag-hidden"></ul>
+      </div>
+      <div id="feature-table-panel" class="fag-hidden fag-collapsed">
+        <div id="feature-table-header">
+          <select id="feature-table-layer-select"></select>
+          <span id="feature-table-count"></span>
+          <button id="feature-table-toggle" type="button" aria-label="地物一覧表の開閉切り替え">▾</button>
+        </div>
+        <!-- Hand-rolled virtual scroll (v0.3.0 task 3-2, see point-list.js):
+             one scrolling element for both axes so the sticky header row
+             shares horizontal scroll with the body while staying pinned
+             vertically; #feature-table-rows only ever holds the rows
+             currently in view, absolutely positioned inside a full-height
+             spacer so the scrollbar's size/position stays correct. -->
+        <div id="feature-table-scroll">
+          <div id="feature-table-cols" class="fag-table-row fag-table-row-head"></div>
+          <div id="feature-table-spacer">
+            <div id="feature-table-rows"></div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 </div>

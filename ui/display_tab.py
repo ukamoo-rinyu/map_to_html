@@ -152,6 +152,20 @@ class DisplayTab(QWidget):
 
         root.addWidget(grp_popup)
 
+        # v0.3.0 tasks 3-1/3-2: no per-field configuration needed here -
+        # both features reuse whichever fields are already visible in
+        # each layer's ポップアップ項目 picker (Tab 1), so there's
+        # nothing to pick beyond turning the feature itself on/off.
+        grp_search_list = QGroupBox(self.tr('検索・一覧表示'))
+        lay_search_list = QVBoxLayout(grp_search_list)
+        self.chk_search = QCheckBox(self.tr('検索バーを表示する（施設名などで検索し、結果をクリックしてズーム表示）'))
+        self.chk_search.setChecked(True)
+        lay_search_list.addWidget(self.chk_search)
+        self.chk_feature_table = QCheckBox(self.tr('レイヤー内地物の一覧表を表示する'))
+        self.chk_feature_table.setChecked(True)
+        lay_search_list.addWidget(self.chk_feature_table)
+        root.addWidget(grp_search_list)
+
         root.addStretch()
 
     def _update_fixed_enabled(self):
@@ -204,5 +218,7 @@ class DisplayTab(QWidget):
                 else 'click'
             ),
             'attribution': self.le_attribution.text().strip(),
+            'searchEnabled': self.chk_search.isChecked(),
+            'featureTableEnabled': self.chk_feature_table.isChecked(),
         }
         return display

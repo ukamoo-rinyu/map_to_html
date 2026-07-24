@@ -1,8 +1,7 @@
 /* Entry point: wires the modules above together once config/layersData/
    layersStyleData have been loaded (either inlined or via <script
    src>, spec 5.3). Every layer the user added is shown with its own
-   QGIS symbology (qgis2web-style "show everything" model) - search
-   and the facility list are a deliberately deferred next step. */
+   QGIS symbology (qgis2web-style "show everything" model). */
 var FAG = {
   map: null,
   config: null,
@@ -42,6 +41,11 @@ function applyTheme(theme) {
   initLayerControl(FAG.map, config.layers, layersData, layersStyleData, config.display.popupTrigger);
   initLabelLayer(FAG.map);
   initLabelClickPopup(FAG.map);
+  // Both read FAG_FEATURES_BY_LAYER, populated by initLayerControl
+  // above via buildStyledLayer's registerFeature calls - must run
+  // after it. Each no-ops on its own if config.display disabled it.
+  initSearch(config, FAG.map);
+  initFeatureTable(config, FAG.map);
 
   // Panels/CSS can change the map container size after Leaflet measured it once.
   setTimeout(function () { FAG.map.invalidateSize(); }, 150);

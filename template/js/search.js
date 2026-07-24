@@ -1,50 +1,132 @@
-/* Keyword search over config.fields.searchFields (spec 3.1 Tab 3
-   "search box"). Filters both the map markers and the facility list. */
-function initSearch(config, sitesData) {
+/* Cross-layer text search (v0.3.0 task 3-1). Reuses whichever
+   attributes are already visible in each layer's ポップアップ項目
+   picker (ui/field_dialog.py) rather than adding a separate field
+   picker for search - core/geojson_writer.py never writes hidden
+   fields to the GeoJSON in the first place, so Object.keys(properties)
+   already *is* "the fields configured as visible" for that layer.
+
+   Matches only features whose OWNING LAYER IS CURRENTLY VISIBLE ON THE
+   MAP (checked in #layer-panel) - a result for a hidden layer would
+   zoom there but the facility wouldn't actually be on the map, which
+   reads as broken. point-list.js's feature table is the opposite
+   choice on purpose (any layer, visible or not) since a table has no
+   equivalent "found something invisible" confusion. */
+function initSearch(config, map) {
+  if (!config.display || !config.display.searchEnabled) return;
+
+  var panel = document.getElementById('search-panel');
   var input = document.getElementById('search-input');
   var countEl = document.getElementById('search-count');
-  if (!input) return;
+  var resultsEl = document.getElementById('search-results');
+  if (!panel || !input || !resultsEl) return;
+
+  var searchableLayers = (config.layers || []).filter(function (layerConfig) {
+    return !!FAG_FEATURES_BY_LAYER[layerConfig.id];
+  });
+  if (!searchableLayers.length) return; // nothing with attributes to search (e.g. tile-only project)
+
+  panel.classList.remove('fag-hidden');
+
+  // Same technique as label-layer.js's addLabelToggleControl: attach
+  // the existing static panel into Leaflet's own topleft control
+  // stack so it lines up under the zoom/label buttons without any
+  // hardcoded offset math, and stop map click/scroll-zoom from firing
+  // while the user is interacting with the panel itself.
+  var control = L.control({ position: 'topleft' });
+  control.onAdd = function () {
+    L.DomEvent.disableClickPropagation(panel);
+    L.DomEvent.disableScrollPropagation(panel);
+    return panel;
+  };
+  control.addTo(map);
+
+  var RESULT_LIMIT = 50;
+  var DEBOUNCE_MS = 120;
+  var debounceTimer = null;
+
+  input.addEventListener('input', function () {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(runSearch, DEBOUNCE_MS);
+  });
 
   function runSearch() {
     var keyword = input.value.trim().toLowerCase();
-    var searchFields = config.fields.searchFields || [];
-    var filtered = (sitesData.features || []).filter(function (feature) {
-      if (!keyword) return true;
-      var props = feature.properties || {};
-      return searchFields.some(function (key) {
-        var value = props[key];
-        return value !== undefined && value !== null &&
-          String(value).toLowerCase().indexOf(keyword) !== -1;
-      });
-    });
-
-    applyFacilityFilter(filtered);
-    if (countEl) countEl.textContent = filtered.length + ' 件';
+    if (!keyword) {
+      renderResults([]);
+      countEl.classList.add('fag-hidden');
+      return;
+    }
+    renderResults(findMatches(keyword));
+    countEl.classList.remove('fag-hidden');
   }
 
-  input.addEventListener('input', runSearch);
-  runSearch();
-}
+  function findMatches(keyword) {
+    var matches = [];
+    searchableLayers.forEach(function (layerConfig) {
+      var byFid = FAG_FEATURES_BY_LAYER[layerConfig.id];
+      Object.keys(byFid).forEach(function (fid) {
+        var entry = byFid[fid];
+        if (!entry.layer._map) return; // layer currently unchecked in #layer-panel
+        if (featureMatches(entry.feature.properties, keyword)) {
+          matches.push({ layerConfig: layerConfig, entry: entry });
+        }
+      });
+    });
+    return matches;
+  }
 
-/* Shared by search.js: shows/hides markers on the map and re-renders
-   the facility list to match the current filtered feature set. */
-function applyFacilityFilter(filteredFeatures) {
-  var idField = FAG.config.fields.idField;
-  var visibleIds = {};
-  filteredFeatures.forEach(function (feature) {
-    var id = idField ? (feature.properties || {})[idField] : undefined;
-    if (id !== undefined && id !== null) visibleIds[id] = true;
-  });
+  function featureMatches(props, keyword) {
+    props = props || {};
+    for (var key in props) {
+      if (key === 'label_text' || key === '_fid') continue;
+      var value = props[key];
+      if (value !== undefined && value !== null &&
+        String(value).toLowerCase().indexOf(keyword) !== -1) {
+        return true;
+      }
+    }
+    return false;
+  }
 
-  Object.keys(FAG.markersById).forEach(function (id) {
-    var marker = FAG.markersById[id];
-    var shouldShow = visibleIds[id] === true;
-    var isShown = FAG.map.hasLayer(marker);
-    if (shouldShow && !isShown) marker.addTo(FAG.map);
-    if (!shouldShow && isShown) FAG.map.removeLayer(marker);
-  });
+  function renderResults(matches) {
+    countEl.textContent = matches.length + ' 件';
+    resultsEl.innerHTML = '';
+    resultsEl.classList.toggle('fag-hidden', matches.length === 0);
+    if (!matches.length) return;
 
-  if (typeof updatePointList === 'function') {
-    updatePointList(filteredFeatures);
+    var fragment = document.createDocumentFragment();
+    matches.slice(0, RESULT_LIMIT).forEach(function (match) {
+      fragment.appendChild(buildResultItem(match));
+    });
+    if (matches.length > RESULT_LIMIT) {
+      var more = document.createElement('li');
+      more.className = 'fag-search-more';
+      more.textContent = 'ほか ' + (matches.length - RESULT_LIMIT) + ' 件 - 検索語を絞り込んでください';
+      fragment.appendChild(more);
+    }
+    resultsEl.appendChild(fragment);
+  }
+
+  function buildResultItem(match) {
+    var props = match.entry.feature.properties || {};
+    var keys = Object.keys(props).filter(function (k) { return k !== 'label_text' && k !== '_fid'; });
+    var name = props.label_text || (keys.length ? props[keys[0]] : '') || '(名称なし)';
+    var sub = keys
+      .filter(function (k) { return String(props[k]) !== String(name); })
+      .map(function (k) { return props[k]; })
+      .filter(function (v) { return v !== undefined && v !== null && v !== ''; })
+      .slice(0, 2)
+      .join(' / ');
+
+    var li = document.createElement('li');
+    li.className = 'fag-search-result';
+    li.innerHTML = '<div class="fag-search-result-name"></div><div class="fag-search-result-sub"></div>';
+    li.querySelector('.fag-search-result-name').textContent = name;
+    li.querySelector('.fag-search-result-sub').textContent =
+      match.layerConfig.label + (sub ? ' ・ ' + sub : '');
+    li.addEventListener('click', function () {
+      focusFeature(map, match.layerConfig.id, match.entry);
+    });
+    return li;
   }
 }

@@ -242,6 +242,151 @@ html, body {
 .fag-popup-label { color: var(--muted-color); flex: 0 0 auto; }
 .fag-popup-value { color: var(--text-color); }
 
+/* ---- Search panel (v0.3.0 task 3-1) - lives inside Leaflet's own
+   topleft control stack (see search.js's initSearch), right below the
+   zoom buttons and the label on/off button, so it doesn't need its
+   own absolute-positioning math and never overlaps them. Leaflet
+   gives every control in a corner `margin-bottom`, so this only needs
+   its own box look, not spacing. ---- */
+#search-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+  width: 220px;
+  max-width: calc(100vw - 80px);
+  font-size: 12px;
+  overflow: hidden;
+}
+#search-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+}
+#search-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 5px 7px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text-color);
+}
+#search-count { flex: 0 0 auto; color: var(--muted-color); white-space: nowrap; }
+
+#search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+  border-top: 1px solid var(--border-color);
+}
+.fag-search-result {
+  padding: 6px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color);
+}
+.fag-search-result:last-child { border-bottom: none; }
+.fag-search-result:hover { background: var(--bg-color); }
+.fag-search-result-name { color: var(--text-color); font-weight: 700; }
+.fag-search-result-sub {
+  color: var(--muted-color);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fag-search-more { padding: 6px 8px; color: var(--muted-color); font-size: 11px; text-align: center; }
+
+/* ---- Feature table drawer (v0.3.0 task 3-2) - a bottom-anchored
+   panel (unlike #layer-panel/#search-panel, which are compact side
+   panels) since a multi-column table needs real width to be usable.
+   Starts collapsed (.fag-collapsed, set in base.html) so it doesn't
+   eat map space until the user actually opens it. ---- */
+#feature-table-panel {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 1000;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  max-height: 45vh;
+}
+#feature-table-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  flex: 0 0 auto;
+}
+#feature-table-layer-select {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-color);
+}
+#feature-table-count { color: var(--muted-color); white-space: nowrap; }
+#feature-table-toggle {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px 6px;
+  color: var(--muted-color);
+  transition: transform 0.15s ease;
+}
+#feature-table-panel.fag-collapsed #feature-table-toggle { transform: rotate(-90deg); }
+#feature-table-panel.fag-collapsed #feature-table-scroll { display: none; }
+
+#feature-table-scroll {
+  flex: 1 1 auto;
+  overflow: auto;
+  border-top: 1px solid var(--border-color);
+  min-height: 0;
+}
+.fag-table-row {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  box-sizing: border-box;
+}
+.fag-table-row-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 700;
+  color: var(--muted-color);
+}
+.fag-table-row:not(.fag-table-row-head) {
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+}
+.fag-table-row:not(.fag-table-row-head):hover { background: var(--bg-color); }
+.fag-table-cell {
+  flex: 0 0 auto;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+#feature-table-spacer { position: relative; }
+#feature-table-rows { position: absolute; top: 0; left: 0; width: 100%; }
+
 /* ---- Responsive layout (Tab 2 "responsive", default ON) ---- */
 @media (max-width: 768px) {
   #app.responsive #app-header {

@@ -8,13 +8,19 @@ import json
 import os
 
 # Modules that this round actually ships; later phases append to this
-# list (search.js, point-list.js, clustering.js, heatmap.js, ...).
+# list (clustering.js, heatmap.js, ...). search.js/point-list.js need
+# layer-control.js's FAG_FEATURES_BY_LAYER/focusFeature to already
+# exist, so they're ordered after it (and label-layer.js, unrelated
+# but conceptually "map setup") and before main.js, which is what
+# actually calls initSearch/initFeatureTable.
 JS_MODULE_ORDER = [
     'display-settings.js',
     'style-renderer.js',
     'map-core.js',
     'layer-control.js',
     'label-layer.js',
+    'search.js',
+    'point-list.js',
     'main.js',
 ]
 
