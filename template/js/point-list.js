@@ -29,8 +29,12 @@ function initFeatureTable(config, map) {
   var rowsEl = document.getElementById('feature-table-rows');
   if (!panel || !select || !scrollEl) return;
 
+  // showPopup === false means the layer's own マップ上でのクリック/ホバーが
+  // 無効化されている（layer-control.jsのlayerInteractive）ので、一覧表から
+  // その行をクリックしても何も起きない = 一覧表に出す意味がない。search.jsも
+  // 同じ理由で同じ判定を使っている。
   var tableLayers = (config.layers || []).filter(function (layerConfig) {
-    return !!FAG_FEATURES_BY_LAYER[layerConfig.id];
+    return !!FAG_FEATURES_BY_LAYER[layerConfig.id] && layerConfig.showPopup !== false;
   });
   if (!tableLayers.length) return; // nothing with attributes to list (e.g. tile-only project)
 
@@ -43,7 +47,10 @@ function initFeatureTable(config, map) {
     select.appendChild(opt);
   });
 
-  var state = { layerId: null, columns: [], colWidths: [], rows: [] };
+  var state = {
+    layerId: null, columns: [], colWidths: [], rows: [],
+    sortColumn: null, sortDirection: 1 // 1 = 昇順, -1 = 降順
+  };
 
   select.addEventListener('change', function () {
     loadLayer(select.value);
@@ -92,11 +99,18 @@ function initFeatureTable(config, map) {
     state.layerId = layerId;
     state.rows = rows;
     state.columns = columns;
+    // Sort criteria don't carry over across a layer switch - each layer
+    // has its own column set, so a previously-sorted column name may not
+    // even exist on the new layer.
+    state.sortColumn = null;
+    state.sortDirection = 1;
     // Width from the column NAME only (not scanning every value across
     // possibly 1,000+ rows just to auto-fit) - long cell values simply
     // ellipsis, same trade-off as the rest of this app's popups/labels.
+    // A little extra room over the plain-cell formula so the sort arrow
+    // (added in the header only) doesn't crowd the column name.
     state.colWidths = columns.map(function (col) {
-      return Math.min(260, Math.max(90, col.length * 9 + 24));
+      return Math.min(260, Math.max(90, col.length * 9 + 34));
     });
 
     countEl.textContent = rows.length + ' 件';
@@ -106,13 +120,63 @@ function initFeatureTable(config, map) {
     renderVisibleRows();
   }
 
+  // Column header click = sort by that column. Only two states (asc/desc,
+  // spec: "昇順・降順のみでよい") - no third "back to original order" click,
+  // clicking a different column just starts that column at ascending.
+  function sortByColumn(col) {
+    if (state.sortColumn === col) {
+      state.sortDirection = -state.sortDirection;
+    } else {
+      state.sortColumn = col;
+      state.sortDirection = 1;
+    }
+    state.rows = state.rows.slice().sort(function (a, b) {
+      var aVal = (a.feature.properties || {})[col];
+      var bVal = (b.feature.properties || {})[col];
+      return state.sortDirection * compareValues(aVal, bVal);
+    });
+    renderHeader();
+    scrollEl.scrollTop = 0;
+    renderVisibleRows();
+  }
+
+  // Numeric compare when both sides parse as numbers (so 2 sorts before
+  // 10, not after it as plain strings would), otherwise locale-aware
+  // string compare.
+  function compareValues(a, b) {
+    var aStr = (a === undefined || a === null) ? '' : String(a);
+    var bStr = (b === undefined || b === null) ? '' : String(b);
+    var aNum = aStr === '' ? NaN : Number(aStr);
+    var bNum = bStr === '' ? NaN : Number(bStr);
+    if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+    return aStr.localeCompare(bStr, 'ja');
+  }
+
   function renderHeader() {
     colsEl.innerHTML = '';
     var fragment = document.createDocumentFragment();
     state.columns.forEach(function (col, i) {
-      fragment.appendChild(buildCell(col, state.colWidths[i]));
+      fragment.appendChild(buildHeaderCell(col, state.colWidths[i]));
     });
     colsEl.appendChild(fragment);
+  }
+
+  function buildHeaderCell(col, width) {
+    var cell = document.createElement('span');
+    cell.className = 'fag-table-cell fag-table-cell-head';
+    cell.style.width = width + 'px';
+    var label = document.createElement('span');
+    label.className = 'fag-table-head-label';
+    label.textContent = col;
+    cell.appendChild(label);
+    if (state.sortColumn === col) {
+      var arrow = document.createElement('span');
+      arrow.className = 'fag-table-sort-arrow';
+      arrow.textContent = state.sortDirection === 1 ? '▲' : '▼';
+      cell.appendChild(arrow);
+    }
+    cell.addEventListener('click', function () { sortByColumn(col); });
+    return cell;
   }
 
   function renderVisibleRows() {

@@ -11,7 +11,16 @@
    zoom there but the facility wouldn't actually be on the map, which
    reads as broken. point-list.js's feature table is the opposite
    choice on purpose (any layer, visible or not) since a table has no
-   equivalent "found something invisible" confusion. */
+   equivalent "found something invisible" confusion.
+
+   Also excludes layers with showPopup === false (データ設定 tab's
+   per-layer "ポップアップ表示" checkbox, same layerInteractive flag
+   layer-control.js uses to make a layer click/hover-inert): selecting
+   a search result normally opens that feature's popup via
+   focusFeature(), so surfacing a facility whose layer can never show
+   one would zoom the map for no visible result. point-list.js applies
+   the same restriction to the feature table for the same reason (a row
+   click there does nothing on a non-interactive layer). */
 function initSearch(config, map) {
   if (!config.display || !config.display.searchEnabled) return;
 
@@ -23,7 +32,7 @@ function initSearch(config, map) {
   if (!panel || !input || !resultsEl) return;
 
   var searchableLayers = (config.layers || []).filter(function (layerConfig) {
-    return !!FAG_FEATURES_BY_LAYER[layerConfig.id];
+    return !!FAG_FEATURES_BY_LAYER[layerConfig.id] && layerConfig.showPopup !== false;
   });
   if (!searchableLayers.length) return; // nothing with attributes to search (e.g. tile-only project)
 

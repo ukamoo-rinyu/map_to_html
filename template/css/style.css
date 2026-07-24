@@ -312,9 +312,17 @@ html, body {
 
 /* ---- Feature table (v0.3.0 task 3-2) - a left-side panel (spec
    feedback: prefer it over the map's left edge rather than a full-
-   width bottom drawer), positioned below the zoom control + label
-   on/off button (both live in Leaflet's own topleft control stack,
-   ~100px tall together) so it doesn't overlap them. Wider than
+   width bottom drawer). Anchored to the BOTTOM-left corner (spec
+   feedback: stand by as a small bar there, expand upward when opened)
+   rather than the top, so it stays clear of Leaflet's own topleft
+   control stack (zoom buttons + label on/off button) regardless of
+   how tall the expanded table gets. column-reverse flips the visual
+   stacking order without reordering the DOM: #feature-table-header
+   (first child) ends up pinned at the bottom, #feature-table-scroll
+   (second child) sits above it - so growing the scroll area's content
+   pushes the panel's TOP edge up while its bottom stays anchored,
+   which is what "collapsed at the bottom, expands upward" means with
+   a `bottom`-anchored absolutely positioned box. Wider than
    #layer-panel since a multi-column table needs real width; starts
    collapsed (.fag-collapsed, set in base.html) so it doesn't eat map
    space until opened, same collapse pattern as #layer-panel
@@ -322,15 +330,7 @@ html, body {
 #feature-table-panel {
   position: absolute;
   left: 10px;
-  /* Clears Leaflet's own topleft control stack (zoom buttons ~64px +
-     10px margin + label on/off button ~34px + 10px margin = 118px) -
-     measured directly rather than guessed, since map-core.js/
-     label-layer.js could each change their own control's size
-     independently of this file. Both those controls are positioned
-     relative to #map-pane, same as this panel, so header height
-     (which differs when #app-header wraps on narrow screens, see the
-     responsive media query) doesn't affect this offset at all. */
-  top: 130px;
+  bottom: 10px;
   z-index: 1000;
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
@@ -338,14 +338,14 @@ html, body {
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
   font-size: 12px;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   width: 360px;
   max-width: calc(100vw - 20px);
   /* 100vh minus: header height (56px; taller once #app-header wraps
      under 768px, so this runs a little short there - not worth a JS
-     measurement for that edge case) + this panel's own 130px top
-     offset + a bottom margin to match the 10px left/top gaps. */
-  max-height: calc(100vh - 206px);
+     measurement for that edge case) + a 10px gap above the panel to
+     match its own 10px bottom/left offset. */
+  max-height: calc(100vh - 76px);
 }
 #feature-table-panel.fag-collapsed { max-height: none; }
 #feature-table-header {
@@ -380,7 +380,9 @@ html, body {
 #feature-table-scroll {
   flex: 1 1 auto;
   overflow: auto;
-  border-top: 1px solid var(--border-color);
+  /* Sits visually ABOVE the header (column-reverse) - the border
+     between them belongs on this element's bottom edge now. */
+  border-bottom: 1px solid var(--border-color);
   min-height: 0;
 }
 .fag-table-row {
@@ -410,6 +412,26 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
   box-sizing: border-box;
+}
+/* ---- Sortable column headers - click toggles asc/desc (no third
+   "unsorted" state) ---- */
+.fag-table-cell-head {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+.fag-table-cell-head:hover { color: var(--text-color); }
+.fag-table-head-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fag-table-sort-arrow {
+  flex: 0 0 auto;
+  font-size: 9px;
+  color: var(--accent-color);
 }
 #feature-table-spacer { position: relative; }
 #feature-table-rows { position: absolute; top: 0; left: 0; width: 100%; }
