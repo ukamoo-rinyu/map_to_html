@@ -5,6 +5,74 @@
 
 ---
 
+## 2026-07-24: v0.3.0 タスク3-1（検索）・3-2（地物一覧表）を実装
+
+**ブランチ**: `sonnet/search-and-feature-table`（`sonnet/misc-fixes`の直後）
+**担当**: Claude Code標準（Sonnet）。設計・実装とも本セッションで実施
+（本来Fable 5が設計担当だったが今回は不参加のため）。詳細な設計判断は
+`C:\Users\ukawa\.claude\plans\proud-orbiting-melody.md`（承認済みプラン）を参照。
+
+### 前提として発見した問題
+`template/js/search.js`・`template/js/point-list.js`は元々存在したが、
+`core/html_builder.py`のJS_MODULE_ORDERに含まれておらず`main.js`からも
+呼ばれていない**未使用の死んだコード**だった。中身は`FAG.markersById`・
+`config.fields.idField`等、v0.2.0以前の「単一sitesレイヤー」時代の設計を
+前提にしており、現行の「レイヤーごとに独立したシンボロジ/フィールド設定を
+持つ複数レイヤー」アーキテクチャとは噛み合わない。両ファイルとも全面書き直し。
+
+### 実装内容
+- **設計方針**: 検索（3-1）はレイヤー横断・表示中レイヤーのみ対象。
+  一覧表（3-2）は選択した1レイヤーのみ・非表示レイヤーも選択可（選ぶと
+  自動でそのレイヤーを表示状態にする）。どちらも新しいフィールド選択UIは
+  追加せず、`ui/field_dialog.py`のポップアップ項目 設定…で既に選ばれている
+  フィールド（`core/geojson_writer.py`が実際にGeoJSONへ書き出す属性）を
+  そのまま検索対象・表示列として再利用。
+- `template/js/layer-control.js`に`FAG_FEATURES_BY_LAYER`
+  （`{layerId: {fid: {feature, layer}}}`、`_fid`はgeojson_writer.pyが
+  常に付与する安定連番）と`focusFeature(map, layerId, entry)`
+  （ズーム＋`openPopup()`、非表示レイヤーなら`#layer-panel`のチェックボックスを
+  自動でONにしてから）を追加。`buildStyledLayer`のmarker/line/fill
+  各分岐で`registerFeature`を呼ぶよう変更。
+- `template/js/search.js`: デバウンス付き入力、表示中レイヤーのみ対象に
+  全文字列検索、結果は上位50件のみ描画（残りは件数表示）、結果クリックで
+  `focusFeature`。パネルはLeaflet純正コントロールとして左上
+  （ズームボタン・ラベルON/OFFボタンの下）にスタック。
+- `template/js/point-list.js`: `initFeatureTable`。レイヤー選択
+  プルダウン、選択レイヤーの列（GeoJSON属性のキー順）、**自前実装の
+  固定行高仮想スクロール**（スクロール位置から表示範囲のみDOMに存在させる。
+  ヘッダー行は`position:sticky`で同一スクロールコンテナ内に置き、横スクロールを
+  ボディと共有）。1,530件（実データ想定）でスクロール位置→描画行の対応を
+  実機相当のブラウザテストで確認済み（後述）。
+- `ui/display_tab.py` / `core/config_builder.py`: 「検索バーを表示する」
+  「レイヤー内地物の一覧表を表示する」チェックボックス（デフォルト両方ON）→
+  `config.display.searchEnabled`/`featureTableEnabled`。
+- `core/html_builder.py`のJS_MODULE_ORDERに`search.js`・`point-list.js`を
+  `layer-control.js`/`label-layer.js`の後・`main.js`の前に追加。
+
+### 検証（ブラウザ、1,531件データセット、Single-file出力）
+検索: キーワードで正しく絞り込み／50件超で「ほか◯件」表示／結果クリックで
+ズーム＋ポップアップ／非表示レイヤーの地物は検索にヒットしないことを確認。
+一覧表: レイヤー切替で列・行が正しく差し替わる／1,531件で仮想スクロールが
+正しい範囲の行を描画（スクロール位置→行番号の対応を複数ポイントで確認）／
+行クリックでズーム＋ポップアップ（`showPopup:false`のレイヤーはズームのみ、
+ポップアップ開かず）／`searchEnabled`/`featureTableEnabled`を`false`にすると
+両パネルとも非表示になることを確認。
+
+**テスト時のハマりどころ（次回セッション向け）**: `split`出力
+（`config.js`/`layers.js`を別ファイルで参照）だと、このBrowserツール環境では
+regenerate後も**別ファイルの`<script src>`が古い内容のままキャッシュされ続ける**
+（`location.reload()`・Ctrl+Shift+R・新規タブでも直らない。手動`fetch(...,
+{cache:'no-store'})`は最新を取得できるのに、ブラウザの通常のスクリプト読み込み
+だけ古いまま）。原因不明だが再現性あり。回避策: 検証には`single`出力
+（HTML1ファイルに全部インライン）を使うこと - こちらは`location.reload()`で
+正しく最新化される。加えて、Browserペインが実際に画面表示されていない
+（`document.visibilityState==='hidden'`）ときは`requestAnimationFrame`が
+発火しないため、rAFに依存する再描画ロジックの検証は
+`window.requestAnimationFrame`を同期実行に一時差し替えてテストすること
+（本セッションでは`initFeatureTable`を再実行して確認した）。
+
+---
+
 ## 2026-07-23: ホバーのbringToFrontが重なり順優先度を恒久的に壊していた問題を修正
 
 **ブランチ**: `sonnet/v030-ux-fixes`
