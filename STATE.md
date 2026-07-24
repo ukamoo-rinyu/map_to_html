@@ -5,6 +5,61 @@
 
 ---
 
+## 2026-07-24: マップ単位（メートル）の線幅に対応
+
+**ブランチ**: `sonnet/search-and-feature-table`
+**担当**: Claude Code標準（Sonnet）
+
+ユーザーからの相談: 道路レイヤーの線幅をmmではなくマップ単位にして
+「ズームアウトしても拡大されない」ようにしたが、HTML出力では引き継がれず
+太い線のまま出力される。マップ単位を維持できないか。
+
+### 原因（2つの問題が重なっていた）
+1. `style_extractor.py`の`_extract_line_style`が`symbol.widthUnit()`を
+   読もうとしていたが、**このメソッドはQgsLineSymbolには存在しない**
+   （単位はシンボルレイヤー`QgsSimpleLineSymbolLayer.widthUnit()`が持つ）。
+   `hasattr`チェックが常にFalseになり**ミリメートルと誤判定**、
+   「19.5マップ単位」→「19.5mm ≒ 74px」→上限20pxにクランプ、という
+   固定太線がズーム無関係に描かれていた（スクリーンショットのオレンジの塊）。
+2. そもそもマップ単位はズーム依存なので固定pxには変換できず、
+   `_to_px`は対応外の単位をフォールバック値に落とす設計だった。
+
+### 対応
+- **Python側** (`core/style_extractor.py`):
+  - 幅の単位をシンボルレイヤーから正しく読むよう修正。
+  - `RenderMetersInMapUnits`（実メートル）と`RenderMapUnits`（マップ単位）を
+    実世界メートルに換算して`widthMeters`（線）・`strokeWidthMeters`
+    （ポリゴン輪郭、両ブランチ）としてエクスポート。マップ単位→実メートルの
+    換算は`_meters_per_map_unit(layer)`：プロジェクトCRSがEPSG:3857なら
+    メルカトルの緯度歪みを補正（×cos(レイヤー中心の緯度)）、その他の
+    メートル系CRSなら1:1、度単位CRSなら換算不能としてpxフォールバック。
+  - 固定単位（mm/pt/px）は従来通りpx変換。カテゴリ別スタイルにも適用
+    （`_style_for_symbol`/`_extract_category_styles`にパラメータを伝搬）。
+- **JS側**:
+  - `style-renderer.js`: `FAG_MAPUNIT_PATHS`レジストリと
+    `fagUpdateMapUnitWeights(map)`。px幅 = メートル ÷（地図中心緯度での
+    1pxあたり実メートル数 `156543.03392×cos(lat)/2^zoom`）。下限0.5px
+    （QGISがサブピクセル幅をヘアラインで描き続けるのに合わせ、
+    ズームアウトで完全消滅はさせない）。
+  - `layer-control.js`: line/fillの`onEachFeature`で`widthMeters`/
+    `strokeWidthMeters`を持つパスをレジストリに登録。`initLayerControl`が
+    全レイヤー構築後に初回計算＋`map.on('zoomend')`で再計算。
+  - `bindHoverHighlight`（style-renderer.js）との干渉対策: ホバーの
+    基準太さをバインド時スナップショットではなく`_fagBaseWeight`
+    （`fagUpdateMapUnitWeights`がズームごとに更新）から読むようにし、
+    ズーム後のマウスアウトで古いズームの太さに戻るバグを予防。
+
+### 検証
+`gen_mapunit_test.py`（scratchpad）で幅員区分4カテゴリ×12本の道路
+（widthMeters: 19.5/13/5.5/3）＋50m輪郭ポリゴンのテストサイトを生成し
+ブラウザで確認: z14で19.5m道路=2.48px、z17で19.86px（実寸通り）、
+z10で0.5px下限、いずれも期待式と一致／`setZoom`の自然な`zoomend`でも
+再計算される／ホバーで+2px→マウスアウトで現在ズームの太さに正しく復帰。
+`node --check`・`flake8`通過。QGIS実機での抽出（単位の読み取り）は
+次回ユーザーテストで要確認。
+
+---
+
 ## 2026-07-24: 一覧表の列ソート・ポップアップ連動フィルタ・配置の再修正
 
 **ブランチ**: `sonnet/search-and-feature-table`

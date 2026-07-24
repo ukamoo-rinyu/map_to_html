@@ -136,6 +136,16 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
     node.items.push({ config: layerConfig, layerGroup: layerGroup, style: styleData.defaultStyle || {} });
   });
 
+  // Map-unit stroke widths (real-world meters, see style-renderer.js's
+  // FAG_MAPUNIT_PATHS): resolve them to px for the initial zoom now
+  // that every layer is built, then keep them tracking the zoom level
+  // so zooming out shrinks them exactly like QGIS's マップ単位 widths
+  // (instead of a constant screen thickness swallowing the whole map).
+  if (FAG_MAPUNIT_PATHS.length) {
+    fagUpdateMapUnitWeights(map);
+    map.on('zoomend', function () { fagUpdateMapUnitWeights(map); });
+  }
+
   renderLayerTree(tree, listEl, map);
 }
 
@@ -406,6 +416,17 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
       },
       onEachFeature: function (feature, layer) {
         registerFeature(layerId, feature, layer);
+        // widthMeters = QGIS マップ単位 width (a real-world size, e.g.
+        // a road drawn at its actual width). The px weight for it is
+        // zoom-dependent, recomputed by fagUpdateMapUnitWeights -
+        // initLayerControl runs it once after all layers are built
+        // (before that this feature keeps the fallback px width from
+        // style() above) and again on every zoomend.
+        var resolved = resolveCategoryStyle(byCategory, (feature && feature.properties) || {});
+        var lineStyle = (resolved && resolved.line) || style.line;
+        if (lineStyle.widthMeters) {
+          FAG_MAPUNIT_PATHS.push({ path: layer, meters: lineStyle.widthMeters });
+        }
         if (!interactive) return;
         bindPopupIfAny(layer, feature.properties, popupTrigger);
         if (popupTrigger !== 'none') bindHoverHighlight(layer);
@@ -438,6 +459,12 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
       },
       onEachFeature: function (feature, layer) {
         registerFeature(layerId, feature, layer);
+        // Same map-unit scheme as the line branch, for polygon outlines.
+        var resolved = resolveCategoryStyle(byCategory, (feature && feature.properties) || {});
+        var fillStyle = (resolved && resolved.fill) || style.fill;
+        if (fillStyle.strokeWidthMeters) {
+          FAG_MAPUNIT_PATHS.push({ path: layer, meters: fillStyle.strokeWidthMeters });
+        }
         if (!interactive) return;
         bindPopupIfAny(layer, feature.properties, popupTrigger);
         if (popupTrigger !== 'none') bindHoverHighlight(layer);

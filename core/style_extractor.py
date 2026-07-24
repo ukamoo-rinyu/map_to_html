@@ -7,12 +7,15 @@ classification field, with 'defaultStyle' as the fallback for values
 that don't match any category (e.g. an "all other values" catch-all
 or data that predates the category being added).
 """
+import math
+
 from qgis.core import (
     QgsProject, QgsSingleSymbolRenderer, QgsCategorizedSymbolRenderer,
     QgsRenderContext, QgsWkbTypes,
     QgsSimpleMarkerSymbolLayerBase, QgsVectorLayerSimpleLabeling,
     QgsExpression, QgsExpressionContext, QgsExpressionContextUtils,
     QgsUnitTypes, QgsMessageLog, Qgis,
+    QgsCoordinateTransform, QgsCoordinateReferenceSystem,
 )
 
 
@@ -50,6 +53,43 @@ def _to_px(value, unit, fallback):
 
 def _clamp(value, lo, hi):
     return max(lo, min(hi, value))
+
+
+def _meters_per_map_unit(layer):
+    """How many real-world meters one map (project-CRS) unit represents
+    around this layer, or None when that isn't a fixed number (project
+    CRS in degrees). Needed to export マップ単位 line widths as real
+    meters: in Web Mercator (EPSG:3857) a "map unit meter" is inflated
+    by 1/cos(latitude), so a 20-unit-wide road drawn on a 3857 canvas
+    at Osaka is really only 20*cos(34.7°) ≈ 16.4m of ground - the
+    web-map side re-applies the same cos factor dynamically, so real
+    meters is the common currency between the two."""
+    try:
+        crs = QgsProject.instance().crs()
+        if crs.mapUnits() != QgsUnitTypes.DistanceMeters:
+            return None
+        if crs.authid() != 'EPSG:3857':
+            return 1.0  # a genuine metric CRS: map units are real meters
+        center = layer.extent().center()
+        transform = QgsCoordinateTransform(
+            layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326'), QgsProject.instance()
+        )
+        lat = transform.transform(center).y()
+        return math.cos(math.radians(_clamp(lat, -85.0, 85.0)))
+    except Exception as exc:
+        _log_extract_warning('meters per map unit', exc)
+        return 1.0
+
+
+def _width_in_meters(value, unit, meters_per_map_unit):
+    """Real-world meters for a map-based width, or None when the width
+    isn't map-based at all (mm/pt/px - the fixed-size units handled by
+    _to_px) or can't be converted (map units under a degrees CRS)."""
+    if unit == QgsUnitTypes.RenderMetersInMapUnits:
+        return value
+    if unit == QgsUnitTypes.RenderMapUnits and meters_per_map_unit is not None:
+        return value * meters_per_map_unit
+    return None
 
 
 # QGIS shape names -> the small shape vocabulary the Leaflet template understands.
@@ -141,8 +181,17 @@ def _extract_marker_style(symbol):
     return style
 
 
-def _extract_line_style(symbol):
-    """Reference-layer line symbology (spec 4.2.1 'ライン')."""
+def _extract_line_style(symbol, meters_per_map_unit=None):
+    """Reference-layer line symbology (spec 4.2.1 'ライン').
+
+    A map-based width (マップ単位 / メートル(地図単位) - e.g. a road
+    layer whose line width IS the road's real width, so zooming out
+    shrinks it instead of keeping a constant screen thickness) exports
+    as `widthMeters` (real-world meters); the web side recomputes the
+    px weight per zoom level from it (style-renderer.js). `width` (px)
+    is still always set as the fallback for that recomputation being
+    unavailable. Fixed-size units (mm/pt/px) export as px `width` only,
+    same as before."""
     style = dict(DEFAULT_LINE)
     if symbol is None:
         return style
@@ -153,13 +202,30 @@ def _extract_line_style(symbol):
     except Exception as exc:
         _log_extract_warning('line color', exc)
     try:
-        width_unit = symbol.widthUnit() if hasattr(symbol, 'widthUnit') else QgsUnitTypes.RenderMillimeters
-        width_px = _to_px(float(symbol.width()), width_unit, DEFAULT_LINE['width'])
-        style['width'] = round(_clamp(width_px, 0.5, 20), 2)
+        symbol_layer = symbol.symbolLayer(0)
+    except Exception as exc:
+        _log_extract_warning('line symbol layer', exc)
+        symbol_layer = None
+    try:
+        # The unit lives on the symbol LAYER (QgsSimpleLineSymbolLayer.
+        # widthUnit()), not on QgsLineSymbol itself - reading it off the
+        # symbol always fell back to "millimeters", which turned e.g. a
+        # 19.5 map-unit road width into 19.5mm ≈ 74px of screen-covering
+        # line (spec feedback: exported roads came out enormous).
+        if symbol_layer is not None and hasattr(symbol_layer, 'widthUnit'):
+            width_unit = symbol_layer.widthUnit()
+        else:
+            width_unit = QgsUnitTypes.RenderMillimeters
+        width_value = float(symbol.width())
+        width_meters = _width_in_meters(width_value, width_unit, meters_per_map_unit)
+        if width_meters is not None:
+            style['widthMeters'] = round(width_meters, 2)
+        else:
+            width_px = _to_px(width_value, width_unit, DEFAULT_LINE['width'])
+            style['width'] = round(_clamp(width_px, 0.5, 20), 2)
     except Exception as exc:
         _log_extract_warning('line width', exc)
     try:
-        symbol_layer = symbol.symbolLayer(0)
         if symbol_layer is not None and hasattr(symbol_layer, 'penStyle'):
             style['dashed'] = int(symbol_layer.penStyle()) != 1  # Qt.SolidLine == 1 across Qt versions
     except Exception as exc:
@@ -167,8 +233,10 @@ def _extract_line_style(symbol):
     return style
 
 
-def _extract_fill_style(symbol):
+def _extract_fill_style(symbol, meters_per_map_unit=None):
     """Reference-layer polygon symbology (spec 4.2.1 'ポリゴン').
+    A map-based stroke width exports as `strokeWidthMeters` alongside
+    the px fallback, same scheme as _extract_line_style's widthMeters.
 
     A polygon symbol's first (and often only) symbol layer can be a
     genuine fill (QgsSimpleFillSymbolLayer, with its own fill color/
@@ -214,8 +282,13 @@ def _extract_fill_style(symbol):
                 symbol_layer.strokeWidthUnit()
                 if hasattr(symbol_layer, 'strokeWidthUnit') else QgsUnitTypes.RenderMillimeters
             )
-            width_px = _to_px(float(symbol_layer.strokeWidth()), width_unit, DEFAULT_FILL['strokeWidth'])
-            style['strokeWidth'] = round(_clamp(width_px, 0.5, 20), 2)
+            width_value = float(symbol_layer.strokeWidth())
+            width_meters = _width_in_meters(width_value, width_unit, meters_per_map_unit)
+            if width_meters is not None:
+                style['strokeWidthMeters'] = round(width_meters, 2)
+            else:
+                width_px = _to_px(width_value, width_unit, DEFAULT_FILL['strokeWidth'])
+                style['strokeWidth'] = round(_clamp(width_px, 0.5, 20), 2)
         except Exception as exc:
             _log_extract_warning('fill stroke width', exc)
         try:
@@ -239,8 +312,13 @@ def _extract_fill_style(symbol):
                 symbol_layer.widthUnit()
                 if hasattr(symbol_layer, 'widthUnit') else QgsUnitTypes.RenderMillimeters
             )
-            width_px = _to_px(float(symbol_layer.width()), width_unit, DEFAULT_FILL['strokeWidth'])
-            style['strokeWidth'] = round(_clamp(width_px, 0.5, 20), 2)
+            width_value = float(symbol_layer.width())
+            width_meters = _width_in_meters(width_value, width_unit, meters_per_map_unit)
+            if width_meters is not None:
+                style['strokeWidthMeters'] = round(width_meters, 2)
+            else:
+                width_px = _to_px(width_value, width_unit, DEFAULT_FILL['strokeWidth'])
+                style['strokeWidth'] = round(_clamp(width_px, 0.5, 20), 2)
         except Exception as exc:
             _log_extract_warning('outline width', exc)
 
@@ -294,17 +372,17 @@ def _extract_label_style(layer):
     return style, True
 
 
-def _style_for_symbol(symbol, geometry_type):
+def _style_for_symbol(symbol, geometry_type, meters_per_map_unit=None):
     """Build the marker/line/fill sub-object for one symbol, matching
     whichever key `extract_style` uses for this geometry type."""
     if geometry_type == QgsWkbTypes.LineGeometry:
-        return {'line': _extract_line_style(symbol)}
+        return {'line': _extract_line_style(symbol, meters_per_map_unit)}
     if geometry_type == QgsWkbTypes.PolygonGeometry:
-        return {'fill': _extract_fill_style(symbol)}
+        return {'fill': _extract_fill_style(symbol, meters_per_map_unit)}
     return {'marker': _extract_marker_style(symbol)}
 
 
-def _extract_category_styles(renderer, geometry_type):
+def _extract_category_styles(renderer, geometry_type, meters_per_map_unit=None):
     """Return (field_name, {value_as_str: style_dict}) for a
     QgsCategorizedSymbolRenderer (spec 4.2.2/4.2.3). QGIS's "all other
     values" catch-all category also has a value (commonly an empty
@@ -317,7 +395,7 @@ def _extract_category_styles(renderer, geometry_type):
     for category in renderer.categories():
         value = category.value()
         key = '' if value is None else str(value)
-        table[key] = _style_for_symbol(category.symbol(), geometry_type)
+        table[key] = _style_for_symbol(category.symbol(), geometry_type, meters_per_map_unit)
     return field, table
 
 
@@ -336,6 +414,9 @@ def extract_style(layer):
     symbol = None
     category_field = None
     category_table = None
+    # Computed once per layer (it does a CRS transform) and shared by
+    # the default symbol and every category symbol alike.
+    meters_per_map_unit = _meters_per_map_unit(layer)
     if renderer is not None:
         if isinstance(renderer, QgsSingleSymbolRenderer):
             symbol = renderer.symbol()
@@ -348,12 +429,14 @@ def extract_style(layer):
                 symbol = None
         if isinstance(renderer, QgsCategorizedSymbolRenderer):
             try:
-                category_field, category_table = _extract_category_styles(renderer, layer.geometryType())
+                category_field, category_table = _extract_category_styles(
+                    renderer, layer.geometryType(), meters_per_map_unit
+                )
             except Exception:
                 category_field, category_table = None, None
 
     geometry_type = layer.geometryType()
-    default_style = _style_for_symbol(symbol, geometry_type)
+    default_style = _style_for_symbol(symbol, geometry_type, meters_per_map_unit)
     if geometry_type not in (QgsWkbTypes.LineGeometry, QgsWkbTypes.PolygonGeometry):
         label_style, labels_enabled = _extract_label_style(layer)
         if labels_enabled:
