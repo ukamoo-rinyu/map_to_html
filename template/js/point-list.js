@@ -113,7 +113,7 @@ function initFeatureTable(config, map) {
       return Math.min(260, Math.max(90, col.length * 9 + 34));
     });
 
-    countEl.textContent = rows.length + ' 件';
+    countEl.textContent = rows.length + ' item' + (rows.length === 1 ? '' : 's');
     renderHeader();
     spacerEl.style.height = (rows.length * FAG_TABLE_ROW_HEIGHT) + 'px';
     scrollEl.scrollTop = 0;

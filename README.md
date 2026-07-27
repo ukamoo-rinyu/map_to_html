@@ -6,6 +6,7 @@ Pick layers from the current project (vector layers with single/categorized symb
 
 - QGIS >= 3.16
 - License: GPL-3.0-or-later
+- Plugin UI language: Japanese, or English for any other QGIS locale (see `i18n/`)
 
 ## 概要
 
@@ -38,3 +39,15 @@ QGISの「プラグイン」→「プラグインの管理とインストール�
 ## Issue / Bug reports
 
 https://github.com/ukamoo-rinyu/map_to_html/issues
+
+## Translations
+
+The plugin dialog's source strings are Japanese; `i18n/map_to_html_en.qm` provides the
+English translation loaded automatically when QGIS's locale isn't Japanese. After adding
+or changing any `self.tr(...)` string in `dialog.py`/`ui/*.py`, regenerate and re-translate:
+
+```
+pylupdate5 dialog.py plugin.py ui/*.py -ts i18n/map_to_html_en.ts
+# fill in any new/changed <translation> entries in the .ts file
+lrelease i18n/map_to_html_en.ts -qm i18n/map_to_html_en.qm
+```

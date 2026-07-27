@@ -8,18 +8,19 @@ from qgis.PyQt.QtWidgets import (
     QComboBox, QLineEdit,
 )
 
-BASEMAP_OPTIONS = [
-    ('carto_light', 'CARTO Light（明るい配色・既定）'),
-    ('osm', 'OpenStreetMap 標準'),
-    ('gsi_pale', '国土地理院 淡色地図'),
-    ('gsi_standard', '国土地理院 標準地図'),
-]
-
 
 class DisplayTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._build_ui()
+
+    def _basemap_options(self):
+        return [
+            ('carto_light', self.tr('CARTO Light（明るい配色・既定）')),
+            ('osm', self.tr('OpenStreetMap 標準')),
+            ('gsi_pale', self.tr('国土地理院 淡色地図')),
+            ('gsi_standard', self.tr('国土地理院 標準地図')),
+        ]
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -119,8 +120,8 @@ class DisplayTab(QWidget):
         row_basemap = QHBoxLayout()
         row_basemap.addWidget(QLabel(self.tr('地図タイル:')))
         self.cb_basemap = QComboBox()
-        for key, label in BASEMAP_OPTIONS:
-            self.cb_basemap.addItem(self.tr(label), key)
+        for key, label in self._basemap_options():
+            self.cb_basemap.addItem(label, key)
         row_basemap.addWidget(self.cb_basemap, 1)
         lay_basemap.addLayout(row_basemap)
         self._update_basemap_enabled()

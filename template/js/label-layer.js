@@ -87,9 +87,9 @@ function addLabelToggleControl(map, schedule) {
     var container = L.DomUtil.create('div', 'leaflet-bar fag-label-toggle');
     var button = L.DomUtil.create('a', '', container);
     button.href = '#';
-    button.title = 'ラベル表示切り替え';
+    button.title = 'Toggle labels';
     button.setAttribute('role', 'button');
-    button.setAttribute('aria-label', 'ラベル表示切り替え');
+    button.setAttribute('aria-label', 'Toggle labels');
     button.textContent = 'Aa';
     L.DomEvent.on(button, 'click', function (e) {
       L.DomEvent.stop(e);
