@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,7 +12,7 @@
   <header id="app-header">
     <h1 id="app-title">Facility Search</h1>
     <div id="search-panel" class="fag-hidden">
-      <input type="text" id="search-input" placeholder="施設名などで検索…">
+      <input type="text" id="search-input" placeholder="Search by facility name…">
       <div id="search-dropdown">
         <span id="search-count" class="fag-hidden"></span>
         <ul id="search-results" class="fag-hidden"></ul>
@@ -24,8 +24,8 @@
       <div id="map"></div>
       <div id="layer-panel" class="fag-hidden">
         <div id="layer-panel-header">
-          <span id="layer-panel-title">レイヤー</span>
-          <button id="layer-panel-toggle" type="button" aria-label="レイヤーパネルの折りたたみ切り替え">▾</button>
+          <span id="layer-panel-title">Layers</span>
+          <button id="layer-panel-toggle" type="button" aria-label="Toggle layer panel">▾</button>
         </div>
         <ul id="layer-panel-list"></ul>
       </div>
@@ -33,7 +33,7 @@
         <div id="feature-table-header">
           <select id="feature-table-layer-select"></select>
           <span id="feature-table-count"></span>
-          <button id="feature-table-toggle" type="button" aria-label="地物一覧表の開閉切り替え">▾</button>
+          <button id="feature-table-toggle" type="button" aria-label="Toggle feature table">▾</button>
         </div>
         <!-- Hand-rolled virtual scroll (v0.3.0 task 3-2, see point-list.js):
              one scrolling element for both axes so the sticky header row

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+from qgis.PyQt.QtCore import QCoreApplication, QSettings, QTranslator
 from qgis.PyQt.QtWidgets import QAction
 from qgis.PyQt.QtGui import QIcon
 
@@ -13,6 +14,20 @@ class FacilityAppGeneratorPlugin:
         self.iface = iface
         self.action = None
         self.dialog = None
+
+        # UI source strings are Japanese, so a QGIS locale of 'ja'
+        # needs no translator (source text already is the desired
+        # text). Any other locale gets the English catalog - "some
+        # locale we don't have a dedicated translation for" should
+        # still fall back to English rather than untranslated Japanese.
+        self.translator = None
+        locale = (QSettings().value('locale/userLocale') or 'en')[0:2]
+        if locale != 'ja':
+            qm_path = os.path.join(os.path.dirname(__file__), 'i18n', 'map_to_html_en.qm')
+            if os.path.exists(qm_path):
+                self.translator = QTranslator()
+                self.translator.load(qm_path)
+                QCoreApplication.installTranslator(self.translator)
 
     def initGui(self):
         icon_path = os.path.join(os.path.dirname(__file__), 'icon.svg')

@@ -89,7 +89,7 @@ function initSearch(config, map) {
   }
 
   function renderResults(matches) {
-    countEl.textContent = matches.length + ' 件';
+    countEl.textContent = matches.length + ' result' + (matches.length === 1 ? '' : 's');
     resultsEl.innerHTML = '';
     resultsEl.classList.toggle('fag-hidden', matches.length === 0);
     if (!matches.length) return;
@@ -101,7 +101,7 @@ function initSearch(config, map) {
     if (matches.length > RESULT_LIMIT) {
       var more = document.createElement('li');
       more.className = 'fag-search-more';
-      more.textContent = 'ほか ' + (matches.length - RESULT_LIMIT) + ' 件 - 検索語を絞り込んでください';
+      more.textContent = (matches.length - RESULT_LIMIT) + ' more - narrow your search to see them';
       fragment.appendChild(more);
     }
     resultsEl.appendChild(fragment);
@@ -110,7 +110,7 @@ function initSearch(config, map) {
   function buildResultItem(match) {
     var props = match.entry.feature.properties || {};
     var keys = Object.keys(props).filter(function (k) { return k !== 'label_text' && k !== '_fid'; });
-    var name = props.label_text || (keys.length ? props[keys[0]] : '') || '(名称なし)';
+    var name = props.label_text || (keys.length ? props[keys[0]] : '') || '(no name)';
     var sub = keys
       .filter(function (k) { return String(props[k]) !== String(name); })
       .map(function (k) { return props[k]; })
@@ -123,7 +123,7 @@ function initSearch(config, map) {
     li.innerHTML = '<div class="fag-search-result-name"></div><div class="fag-search-result-sub"></div>';
     li.querySelector('.fag-search-result-name').textContent = name;
     li.querySelector('.fag-search-result-sub').textContent =
-      match.layerConfig.label + (sub ? ' ・ ' + sub : '');
+      match.layerConfig.label + (sub ? ' · ' + sub : '');
     li.addEventListener('click', function () {
       focusFeature(map, match.layerConfig.id, match.entry);
       dropdown.classList.add('fag-hidden');

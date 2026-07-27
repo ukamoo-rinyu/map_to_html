@@ -40,8 +40,6 @@ COL_FIELDS = 4
 COL_POPUP = 5
 COL_VISIBLE = 6
 
-TYPE_LABELS = {'vector': 'データ', 'raster': '背景タイル'}
-
 
 class DataTab(QWidget):
     def __init__(self, parent=None):
@@ -50,6 +48,12 @@ class DataTab(QWidget):
         self._build_ui()
         self.refresh_pick_list()
         self._populate_visible_layers()
+
+    def _type_label(self, layer_type):
+        return {
+            'vector': self.tr('データ'),
+            'raster': self.tr('背景タイル'),
+        }.get(layer_type, layer_type)
 
     # ------------------------------------------------------------
     def _build_ui(self):
@@ -136,7 +140,7 @@ class DataTab(QWidget):
         model = self.cb_pick.model()
 
         def add_item(item, indent=''):
-            type_tag = '[{0}] '.format(TYPE_LABELS.get(item['type'], item['type']))
+            type_tag = '[{0}] '.format(self._type_label(item['type']))
             self.cb_pick.addItem(indent + type_tag + item['name'], item['id'])
 
         for item in ungrouped:
@@ -277,7 +281,7 @@ class DataTab(QWidget):
         name_item = QTableWidgetItem(entry['label'])
         self.table.setItem(row, COL_NAME, name_item)
 
-        type_item = QTableWidgetItem(TYPE_LABELS.get(layer_type, layer_type))
+        type_item = QTableWidgetItem(self._type_label(layer_type))
         type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)
         self.table.setItem(row, COL_TYPE, type_item)
 
