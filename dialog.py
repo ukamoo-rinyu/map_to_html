@@ -33,7 +33,7 @@ class FacilityAppGeneratorDialog(QDialog):
         self.iface = iface
         self.setWindowTitle(self.tr('Map to HTML'))
         self.resize(760, 640)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMinMaxButtonsHint)
         self._build_ui()
 
     def _build_ui(self):
@@ -50,9 +50,9 @@ class FacilityAppGeneratorDialog(QDialog):
 
         self.output_tab.btn_generate.clicked.connect(self._on_generate)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.close)
-        buttons.button(QDialogButtonBox.Close).clicked.connect(self.close)
+        buttons.button(QDialogButtonBox.StandardButton.Close).clicked.connect(self.close)
         root.addWidget(buttons)
 
     # ------------------------------------------------------------

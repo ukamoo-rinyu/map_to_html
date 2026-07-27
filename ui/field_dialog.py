@@ -29,12 +29,12 @@ class FieldVisibilityDialog(QDialog):
         )))
 
         self.list_widget = QListWidget()
-        self.list_widget.setDragDropMode(QAbstractItemView.InternalMove)
-        self.list_widget.setDefaultDropAction(Qt.MoveAction)
+        self.list_widget.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.list_widget.setDefaultDropAction(Qt.DropAction.MoveAction)
         for entry in field_config:
             item = QListWidgetItem(entry['name'])
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Checked if entry.get('visible', True) else Qt.Unchecked)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked if entry.get('visible', True) else Qt.CheckState.Unchecked)
             self.list_widget.addItem(item)
         root.addWidget(self.list_widget, 1)
 
@@ -50,15 +50,15 @@ class FieldVisibilityDialog(QDialog):
 
         row_bulk = QHBoxLayout()
         btn_all = QPushButton(self.tr('すべて表示'))
-        btn_all.clicked.connect(lambda: self._set_all(Qt.Checked))
+        btn_all.clicked.connect(lambda: self._set_all(Qt.CheckState.Checked))
         row_bulk.addWidget(btn_all)
         btn_none = QPushButton(self.tr('すべて非表示'))
-        btn_none.clicked.connect(lambda: self._set_all(Qt.Unchecked))
+        btn_none.clicked.connect(lambda: self._set_all(Qt.CheckState.Unchecked))
         row_bulk.addWidget(btn_none)
         row_bulk.addStretch()
         root.addLayout(row_bulk)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
@@ -87,5 +87,5 @@ class FieldVisibilityDialog(QDialog):
         result = []
         for row in range(self.list_widget.count()):
             item = self.list_widget.item(row)
-            result.append({'name': item.text(), 'visible': item.checkState() == Qt.Checked})
+            result.append({'name': item.text(), 'visible': item.checkState() == Qt.CheckState.Checked})
         return result
