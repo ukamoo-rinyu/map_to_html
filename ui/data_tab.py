@@ -384,7 +384,7 @@ class DataTab(QWidget):
     def _open_field_settings(self, layer, entry):
         current_config = entry['field_config'] or field_config.default_field_config(layer)
         dlg = field_dialog.FieldVisibilityDialog(layer, current_config, self)
-        if dlg.exec_():
+        if dlg.exec():
             new_config = dlg.field_config()
             entry['field_config'] = new_config
             field_config.save_field_config(layer, new_config)
