@@ -89,7 +89,11 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
   // Group layers by their QGIS layer-tree group path (spec feedback:
   // a flat checkbox list got hard to read once there were many
   // layers, so this mirrors the QGIS panel's group/subgroup nesting).
-  var tree = { children: {}, order: [], items: [] };
+  // `order` holds tagged {type: 'group'|'item', ...} entries in the
+  // order each was first encountered below, so a group and its sibling
+  // items/groups keep their original relative position instead of
+  // being split into "all groups, then all items".
+  var tree = { children: {}, order: [] };
   layersConfig.forEach(function (layerConfig) {
     var geojson = layersData[layerConfig.id];
     var styleData = layersStyleData[layerConfig.id] || {};
@@ -128,12 +132,15 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
     var node = tree;
     (layerConfig.groupPath || []).forEach(function (groupName) {
       if (!node.children[groupName]) {
-        node.children[groupName] = { children: {}, order: [], items: [] };
-        node.order.push(groupName);
+        node.children[groupName] = { children: {}, order: [] };
+        node.order.push({ type: 'group', name: groupName });
       }
       node = node.children[groupName];
     });
-    node.items.push({ config: layerConfig, layerGroup: layerGroup, style: styleData.defaultStyle || {} });
+    node.order.push({
+      type: 'item',
+      item: { config: layerConfig, layerGroup: layerGroup, style: styleData.defaultStyle || {} },
+    });
   });
 
   // Map-unit stroke widths (real-world meters, see style-renderer.js's
@@ -147,6 +154,7 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
   }
 
   renderLayerTree(tree, listEl, map);
+  refreshGroupCheckboxStates();
 }
 
 /* Recursively brings every Path child (circleMarker/polygon/polyline -
@@ -167,52 +175,98 @@ function bringLayerToFront(layer) {
   if (layer.bringToFront) layer.bringToFront();
 }
 
+// {checkbox, leaves: [...leaf <input> elements]} for every group
+// header rendered so far, refreshed together (checked/indeterminate)
+// whenever any leaf layer checkbox changes - see refreshGroupCheckboxStates.
+var FAG_GROUP_CHECKBOXES = [];
+var fagGroupIdSeq = 0;
+
+function refreshGroupCheckboxStates() {
+  FAG_GROUP_CHECKBOXES.forEach(function (entry) {
+    var total = entry.leaves.length;
+    var checkedCount = entry.leaves.filter(function (cb) { return cb.checked; }).length;
+    entry.checkbox.checked = total > 0 && checkedCount === total;
+    entry.checkbox.indeterminate = checkedCount > 0 && checkedCount < total;
+  });
+}
+
+/* Renders one tree level and returns every leaf layer <input> checkbox
+   under it (including ones nested in sub-groups), so a group header's
+   own checkbox can toggle - and its checked/indeterminate state can
+   reflect - all of its descendants, not just its direct children.
+
+   node.order is walked in reverse: node.order[last] was added to the
+   map LAST (drawn on top of its siblings), so listing it FIRST here
+   makes "top of this panel" mean "top of the map" - same convention
+   data_tab.py uses for its own table. Groups and items share this one
+   reversal (spec feedback: keeping group order untouched while only
+   reversing sibling items split them into "every group, then every
+   item" and could put a group's header out of place relative to
+   siblings it's actually interleaved with in the QGIS layer tree). */
 function renderLayerTree(node, containerEl, map) {
-  node.order.forEach(function (groupName) {
-    var child = node.children[groupName];
-    var groupLi = document.createElement('li');
-    groupLi.className = 'fag-layer-group';
+  var leafCheckboxes = [];
 
-    var groupTitle = document.createElement('div');
-    groupTitle.className = 'fag-layer-group-title';
-    groupTitle.textContent = groupName;
-    groupLi.appendChild(groupTitle);
+  node.order.slice().reverse().forEach(function (entry) {
+    if (entry.type === 'group') {
+      var groupName = entry.name;
+      var child = node.children[groupName];
+      var groupLi = document.createElement('li');
+      groupLi.className = 'fag-layer-group';
 
-    var subUl = document.createElement('ul');
-    subUl.className = 'fag-layer-sublist';
-    groupLi.appendChild(subUl);
+      var groupCheckboxId = 'layer-group-toggle-' + (fagGroupIdSeq++);
+      var header = document.createElement('div');
+      header.className = 'fag-layer-group-header';
+      header.innerHTML = '<input type="checkbox" id="' + groupCheckboxId + '" checked>' +
+        '<label for="' + groupCheckboxId + '" class="fag-layer-group-title"></label>';
+      header.querySelector('label').textContent = groupName;
+      groupLi.appendChild(header);
 
-    containerEl.appendChild(groupLi);
-    renderLayerTree(child, subUl, map);
+      var subUl = document.createElement('ul');
+      subUl.className = 'fag-layer-sublist';
+      groupLi.appendChild(subUl);
+
+      containerEl.appendChild(groupLi);
+
+      var groupLeaves = renderLayerTree(child, subUl, map);
+      var groupCheckbox = header.querySelector('input');
+      groupCheckbox.addEventListener('change', function (e) {
+        var checked = e.target.checked;
+        groupLeaves.forEach(function (cb) {
+          if (cb.checked !== checked) {
+            cb.checked = checked;
+            cb.dispatchEvent(new Event('change'));
+          }
+        });
+      });
+      FAG_GROUP_CHECKBOXES.push({ checkbox: groupCheckbox, leaves: groupLeaves });
+      leafCheckboxes = leafCheckboxes.concat(groupLeaves);
+    } else {
+      var item = entry.item;
+      var layerConfig = item.config;
+      var layerGroup = item.layerGroup;
+      var checkboxId = 'layer-toggle-' + layerConfig.id;
+      var li = document.createElement('li');
+      li.className = 'fag-layer-item';
+      li.innerHTML = '<input type="checkbox" id="' + checkboxId + '"' +
+        (layerConfig.defaultVisible ? ' checked' : '') + '>' +
+        buildLegendSwatchHtml(item.style) +
+        '<label for="' + checkboxId + '"></label>';
+      li.querySelector('label').textContent = layerConfig.label;
+      var checkbox = li.querySelector('input');
+      checkbox.addEventListener('change', function (e) {
+        if (e.target.checked) {
+          layerGroup.addTo(map);
+        } else {
+          map.removeLayer(layerGroup);
+        }
+        refreshGroupCheckboxStates();
+      });
+      containerEl.appendChild(li);
+      leafCheckboxes.push(checkbox);
+    }
   });
 
-  // v0.3.0 task 2-4: within this group level, display items in the
-  // reverse of `layersConfig` order - node.items[last] was added to
-  // the map LAST (drawn on top of its siblings), so listing it FIRST
-  // here makes "top of this panel" mean "top of the map" for the
-  // items sharing this group, matching data_tab.py's same reversal on
-  // the plugin's own table. Sibling GROUP order (node.order, just
-  // above) is intentionally left untouched - that mirrors QGIS's own
-  // layer-tree group order, a separate concern from this stacking fix.
-  node.items.slice().reverse().forEach(function (item) {
-    var layerConfig = item.config;
-    var layerGroup = item.layerGroup;
-    var checkboxId = 'layer-toggle-' + layerConfig.id;
-    var li = document.createElement('li');
-    li.innerHTML = '<input type="checkbox" id="' + checkboxId + '"' +
-      (layerConfig.defaultVisible ? ' checked' : '') + '>' +
-      buildLegendSwatchHtml(item.style) +
-      '<label for="' + checkboxId + '"></label>';
-    li.querySelector('label').textContent = layerConfig.label;
-    li.querySelector('input').addEventListener('change', function (e) {
-      if (e.target.checked) {
-        layerGroup.addTo(map);
-      } else {
-        map.removeLayer(layerGroup);
-      }
-    });
-    containerEl.appendChild(li);
-  });
+  return leafCheckboxes;
 }
 
 /* Small swatch shown next to each layer's toggle checkbox so the
