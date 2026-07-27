@@ -182,19 +182,29 @@ html, body {
 }
 
 #layer-panel-list, .fag-layer-sublist { list-style: none; margin: 0; padding: 0; }
-#layer-panel-list li {
+/* A dedicated class (not "#layer-panel-list li", which also matches
+   the group-wrapper <li> below and - being an ID selector - would win
+   on specificity over ".fag-layer-group { display: block }", forcing
+   the group's title+sublist into a flex row instead of stacking them). */
+.fag-layer-item {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 3px 0;
 }
-#layer-panel-list label { cursor: pointer; }
+.fag-layer-item label { cursor: pointer; }
 
 /* ---- Group nodes (spec feedback: mirror QGIS's group hierarchy) ---- */
 .fag-layer-group { display: block; padding: 3px 0; }
+.fag-layer-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .fag-layer-group-title {
   font-weight: 700;
   color: var(--text-color);
+  cursor: pointer;
 }
 .fag-layer-sublist {
   margin-left: 10px;
@@ -416,6 +426,7 @@ html, body {
 /* ---- Sortable column headers - click toggles asc/desc (no third
    "unsorted" state) ---- */
 .fag-table-cell-head {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 3px;
@@ -432,6 +443,23 @@ html, body {
   flex: 0 0 auto;
   font-size: 9px;
   color: var(--accent-color);
+}
+/* Drag-to-resize handle on the right edge of each column header - a
+   manual override for whatever outlier value auto-fit sizing still
+   ellipsis-truncates. z-index above the sort-arrow/label siblings so
+   it's grabbable right up to the header's edge. */
+.fag-table-col-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 1;
+}
+.fag-table-col-resize:hover, .fag-table-col-resize:active {
+  background: var(--accent-color);
+  opacity: 0.4;
 }
 #feature-table-spacer { position: relative; }
 #feature-table-rows { position: absolute; top: 0; left: 0; width: 100%; }

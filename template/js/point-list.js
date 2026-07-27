@@ -15,6 +15,8 @@
    for no benefit, since only ~10-15 rows are ever visible at once. */
 
 var FAG_TABLE_ROW_HEIGHT = 30;
+var FAG_TABLE_MIN_COL_WIDTH = 48;
+var FAG_TABLE_MAX_AUTO_COL_WIDTH = 320;
 
 function initFeatureTable(config, map) {
   if (!config.display || !config.display.featureTableEnabled) return;
@@ -104,13 +106,23 @@ function initFeatureTable(config, map) {
     // even exist on the new layer.
     state.sortColumn = null;
     state.sortDirection = 1;
-    // Width from the column NAME only (not scanning every value across
-    // possibly 1,000+ rows just to auto-fit) - long cell values simply
-    // ellipsis, same trade-off as the rest of this app's popups/labels.
-    // A little extra room over the plain-cell formula so the sort arrow
-    // (added in the header only) doesn't crowd the column name.
+    // Auto-fit from both the column name AND its longest value (capped
+    // at FAG_TABLE_MAX_AUTO_COL_WIDTH - a single outlier value shouldn't
+    // blow up the whole column; the user can still drag it wider via
+    // the resize handle). Scanning every row's string length is cheap
+    // even at 1,000+ rows (just .length checks, no rendering), unlike
+    // actually laying out that many rows up front. A little extra room
+    // over the plain-cell formula so the sort arrow (header only)
+    // doesn't crowd the column name.
     state.colWidths = columns.map(function (col) {
-      return Math.min(260, Math.max(90, col.length * 9 + 34));
+      var maxLen = col.length;
+      for (var i = 0; i < rows.length; i++) {
+        var value = (rows[i].feature.properties || {})[col];
+        if (value === undefined || value === null) continue;
+        var len = String(value).length;
+        if (len > maxLen) maxLen = len;
+      }
+      return Math.min(FAG_TABLE_MAX_AUTO_COL_WIDTH, Math.max(FAG_TABLE_MIN_COL_WIDTH + 42, maxLen * 9 + 34));
     });
 
     countEl.textContent = rows.length + ' item' + (rows.length === 1 ? '' : 's');
@@ -176,7 +188,41 @@ function initFeatureTable(config, map) {
       cell.appendChild(arrow);
     }
     cell.addEventListener('click', function () { sortByColumn(col); });
+
+    var handle = document.createElement('span');
+    handle.className = 'fag-table-col-resize';
+    handle.addEventListener('mousedown', function (e) { startColumnResize(e, col); });
+    handle.addEventListener('click', function (e) { e.stopPropagation(); });
+    cell.appendChild(handle);
+
     return cell;
+  }
+
+  // Drag-to-resize (spec feedback: auto-fit still ellipsis-truncates
+  // whatever value is longer than FAG_TABLE_MAX_AUTO_COL_WIDTH allows -
+  // a manual override covers that outlier without widening every other
+  // column to match it). Writes into the same state.colWidths the
+  // auto-fit sizing produces, so a manual resize sticks until the next
+  // layer switch recomputes widths from scratch.
+  function startColumnResize(e, col) {
+    e.preventDefault();
+    e.stopPropagation();
+    var index = state.columns.indexOf(col);
+    if (index === -1) return;
+    var startX = e.clientX;
+    var startWidth = state.colWidths[index];
+
+    function onMove(moveEvent) {
+      state.colWidths[index] = Math.max(FAG_TABLE_MIN_COL_WIDTH, startWidth + (moveEvent.clientX - startX));
+      renderHeader();
+      renderVisibleRows();
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   }
 
   function renderVisibleRows() {
