@@ -86,12 +86,12 @@ class DataTab(QWidget):
             self.tr('ポップアップ表示'), self.tr('初期表示ON'),
         ])
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(COL_NAME, QHeaderView.Stretch)
+        header.setSectionResizeMode(COL_NAME, QHeaderView.ResizeMode.Stretch)
         for col in (COL_GROUP, COL_TYPE, COL_OPACITY, COL_FIELDS, COL_POPUP, COL_VISIBLE):
-            header.setSectionResizeMode(col, QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
         self.table.verticalHeader().setVisible(False)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         lay.addWidget(self.table, 1)
 
         row_bottom = QHBoxLayout()
@@ -149,7 +149,7 @@ class DataTab(QWidget):
         for group_path, items in grouped:
             self.cb_pick.addItem(' / '.join(group_path))
             header_item = model.item(self.cb_pick.count() - 1)
-            header_item.setFlags(header_item.flags() & ~Qt.ItemIsEnabled)
+            header_item.setFlags(header_item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             header_item.setFont(header_font)
             for item in items:
                 add_item(item, indent='    ')
@@ -275,14 +275,14 @@ class DataTab(QWidget):
         self.table.insertRow(row)
 
         group_item = QTableWidgetItem(' / '.join(group_path))
-        group_item.setFlags(group_item.flags() & ~Qt.ItemIsEditable)
+        group_item.setFlags(group_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         self.table.setItem(row, COL_GROUP, group_item)
 
         name_item = QTableWidgetItem(entry['label'])
         self.table.setItem(row, COL_NAME, name_item)
 
         type_item = QTableWidgetItem(self._type_label(layer_type))
-        type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)
+        type_item.setFlags(type_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         self.table.setItem(row, COL_TYPE, type_item)
 
         if layer_type == 'raster':
@@ -306,7 +306,7 @@ class DataTab(QWidget):
             cell = QWidget()
             cell_layout = QHBoxLayout(cell)
             cell_layout.setContentsMargins(2, 0, 2, 0)
-            cell_layout.setAlignment(Qt.AlignCenter)
+            cell_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             btn_fields = QPushButton(self.tr('設定…'))
             btn_fields.clicked.connect(lambda checked=False, e=entry, ly=layer: self._open_field_settings(ly, e))
             cell_layout.addWidget(btn_fields)
@@ -384,7 +384,7 @@ class DataTab(QWidget):
     def _open_field_settings(self, layer, entry):
         current_config = entry['field_config'] or field_config.default_field_config(layer)
         dlg = field_dialog.FieldVisibilityDialog(layer, current_config, self)
-        if dlg.exec_():
+        if dlg.exec():
             new_config = dlg.field_config()
             entry['field_config'] = new_config
             field_config.save_field_config(layer, new_config)
@@ -451,7 +451,7 @@ class DataTab(QWidget):
         holder = QWidget()
         layout = QHBoxLayout(holder)
         layout.addWidget(widget)
-        layout.setAlignment(Qt.AlignCenter)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setContentsMargins(0, 0, 0, 0)
         return holder
 

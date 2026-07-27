@@ -5,6 +5,39 @@
 
 ---
 
+## 2026-07-27: v0.3.1 リリース（プラグインUIの英語対応）
+
+**ブランチ**: `claude/international-users-english-check-fmp7po` → `main`にマージ予定
+**担当**: Claude Code標準（Sonnet）
+
+ユーザーからの相談: 海外からのダウンロードが多いが、英語表記がちゃんと
+なっているか不安。調査したところ、プラグインの操作画面（`dialog.py`/
+`ui/*.py`）が`self.tr()`でラップされているのに翻訳カタログが一切存在せず、
+QGISのロケールに関わらず常に日本語UIになっていた。出力側のHTML地図も
+大部分は英語だったが、検索欄プレースホルダーやレイヤーパネルなど数箇所
+だけ日本語が残っていた。
+
+### 対応
+- `TYPE_LABELS`（`data_tab.py`）と`BASEMAP_OPTIONS`（`display_tab.py`）が
+  モジュールレベル変数経由で`tr()`に渡されていて翻訳抽出できない状態
+  だったのを、メソッド内で直接リテラルを`tr()`に渡す形に修正
+- `pylupdate5`/`lrelease`で`i18n/map_to_html_en.ts`・`.qm`を新規作成
+  （102件、全て翻訳済み）。`plugin.py`でQGISロケールが`ja`以外なら
+  自動でこの英語カタログを読み込むようにした（`ja`ロケールは従来通り
+  日本語のまま）
+- 出力HTML側の残っていた日本語（検索プレースホルダー、レイヤーパネル
+  タイトル・aria-label、ラベル切替ボタン、検索結果/一覧表の件数表示）を
+  英語に修正、`<html lang="ja">`も`lang="en"`に変更
+- READMEに翻訳の仕組みと再生成手順を追記
+- `metadata.txt`を0.3.1に更新、changelogに上記を追加
+
+### リリース作業
+`main`へマージ後、`v0.3.1`タグを付けてGitHubへプッシュ、`git archive`で
+`map_to_html_v0.3.1.zip`を作成（従来と同じ`facility_app_generator/`
+プレフィックス構成）。
+
+---
+
 ## 2026-07-25: v0.3.0 リリース
 
 **ブランチ**: `sonnet/search-and-feature-table` → `main`にマージ
