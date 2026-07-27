@@ -325,8 +325,15 @@ def _extract_fill_style(symbol, meters_per_map_unit=None):
     return style
 
 
-def _extract_label_style(layer):
-    """Returns (style_dict, labels_enabled)."""
+def _extract_label_style(layer, meters_per_map_unit=None):
+    """Returns (style_dict, labels_enabled).
+
+    A font size set in マップ単位/メートル(地図単位) is exported as
+    `fontSizeMeters` (real-world meters, same currency as the line
+    widths above) in addition to the fixed `fontSize` px fallback, so
+    the web map can grow/shrink the text with the zoom level exactly
+    like QGIS does instead of freezing it at one screen size. Same for
+    the halo/buffer width (`buffer.widthMeters`)."""
     if not layer.labelsEnabled():
         return dict(DEFAULT_LABEL), False
     labeling = layer.labeling()
@@ -341,8 +348,12 @@ def _extract_label_style(layer):
     style['fontFamily'] = font.family() or DEFAULT_LABEL['fontFamily']
     try:
         raw_size = fmt.size() if fmt.size() else font.pointSize()
-        size_px = _to_px(float(raw_size), fmt.sizeUnit(), DEFAULT_LABEL['fontSize'])
+        size_unit = fmt.sizeUnit()
+        size_px = _to_px(float(raw_size), size_unit, DEFAULT_LABEL['fontSize'])
         style['fontSize'] = round(_clamp(size_px, 6, 60), 1)
+        size_meters = _width_in_meters(float(raw_size), size_unit, meters_per_map_unit)
+        if size_meters:
+            style['fontSizeMeters'] = round(size_meters, 3)
     except Exception as exc:
         _log_extract_warning('label font size', exc)
     style['bold'] = bool(font.bold())
@@ -354,18 +365,25 @@ def _extract_label_style(layer):
     buffer_settings = fmt.buffer()
     if buffer_settings.enabled():
         bcolor = buffer_settings.color()
+        buffer_meters = None
         try:
-            width_px = _to_px(float(buffer_settings.size()), buffer_settings.sizeUnit(), 2)
+            buffer_unit = buffer_settings.sizeUnit()
+            width_px = _to_px(float(buffer_settings.size()), buffer_unit, 2)
             # Clamped tighter than other sizes on purpose: with hundreds of
             # densely-packed permanent labels, even a legitimately large
             # halo compounds into a solid block obscuring the whole map.
             width_px = _clamp(width_px, 0, 4)
+            buffer_meters = _width_in_meters(
+                float(buffer_settings.size()), buffer_unit, meters_per_map_unit
+            )
         except Exception:
             width_px = 2
         style['buffer'] = {
             'color': bcolor.name() if bcolor is not None else '#ffffff',
             'width': round(width_px, 2),
         }
+        if buffer_meters:
+            style['buffer']['widthMeters'] = round(buffer_meters, 3)
     else:
         style['buffer'] = None
 
@@ -438,7 +456,7 @@ def extract_style(layer):
     geometry_type = layer.geometryType()
     default_style = _style_for_symbol(symbol, geometry_type, meters_per_map_unit)
     if geometry_type not in (QgsWkbTypes.LineGeometry, QgsWkbTypes.PolygonGeometry):
-        label_style, labels_enabled = _extract_label_style(layer)
+        label_style, labels_enabled = _extract_label_style(layer, meters_per_map_unit)
         if labels_enabled:
             default_style['label'] = label_style
             if category_table:

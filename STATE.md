@@ -38,6 +38,56 @@ QGISのロケールに関わらず常に日本語UIになっていた。出力�
 
 ---
 
+## 2026-07-25: マップ単位のラベル文字サイズに対応（v0.3.1の一部）
+
+**担当**: Claude Code（Opus）
+**バージョン**: v0.3.1（`metadata.txt`を0.3.1に更新済み。リリース作業
+＝タグ付け・zip作成は未実施、他の0.3.1項目が揃った時点で行う）
+
+ユーザーからの相談: ラベルのサイズを「マップ単位」で設定したとき、
+HTMLにもその大きさ（ズームで拡大縮小する実寸）を反映できないか。
+線幅（2026-07-24の項）と同じ問題がラベルにも残っていた：
+`_to_px`はマップ単位を換算できないので既定値12pxに落としており、
+QGISで「20マップ単位」と指定しても出力は固定11〜12pxだった。
+
+### 対応
+- **Python側** (`core/style_extractor.py`):
+  - `_extract_label_style(layer, meters_per_map_unit)`に換算値を渡し
+    （`extract_style`が線幅用に算出済みのものを再利用）、
+    `fmt.sizeUnit()`が`RenderMapUnits`/`RenderMetersInMapUnits`なら
+    `_width_in_meters`で実メートル化して`fontSizeMeters`を追加出力。
+    ハロー（バッファ）も同様に`buffer.widthMeters`。
+  - 固定単位（mm/pt/px）は従来通り`fontSize`/`buffer.width`のpxのみ。
+    px側の値は常に出力するので、JS側のフォールバックにもなる。
+- **JS側**:
+  - `style-renderer.js`: メートル→px換算を`fagMetersToPixels(map, m)`
+    として切り出し、`fagMapUnitWeight`（線幅、下限0.5px）はその上に載せた。
+  - `label-layer.js`: `fagLabelFontSize`/`fagLabelBufferWidth`が
+    `fontSizeMeters`/`widthMeters`を現在ズームのpxへ換算。
+    文字サイズは`FAG_LABEL_MIN_PX=6`〜`FAG_LABEL_MAX_PX=200`でクランプ
+    （線のヘアライン下限と同じ考え方＝ズームアウトで潰れて読めなくなる
+    より最小サイズで残す／ズームインで1件が画面を覆うのを防ぐ）、
+    ハローは既存のpx側と同じく4px上限。
+  - テキスト計測キャッシュ（`entry.metrics`）はこれまで「フォントは
+    不変」前提で1回きりだったので、`entry.metricsFontSize`を併せて持ち
+    **丸めたpxサイズが変わったときだけ**再計測するようにした
+    （px指定ラベルは従来通り常時キャッシュヒット、マップ単位ラベルも
+    パン中は再計測なし＝ズーム段階ごとに1回）。
+  - 衝突判定・ラベルクリック判定は再計測後の`metrics`をそのまま使うので
+    自動的に新サイズへ追従する。
+
+### 検証
+scratchpadの`gen_mapunit_label_test.py`で「20mラベル＋2mハロー」の
+レイヤーと「固定11px」レイヤーを並べたテストサイトを生成しブラウザで確認:
+z12→6px（下限）、z16→10px、z17→20px、z18→41px、z19→81px と
+期待式（20m ÷ `156543.03392×cos(lat)/2^zoom`）に一致し、固定pxレイヤーは
+全ズームで11pxのまま。ハローもz17で2.04px→z18以降4px上限で頭打ち。
+ラベルの外接矩形も高さ7px→24px→97pxと再計測されていることを確認。
+`node --check`・`flake8`通過。**QGIS実機での抽出**（`fmt.sizeUnit()`が
+マップ単位を返すか）は線幅のときと同様、次回ユーザーテストで要確認。
+
+---
+
 ## 2026-07-25: v0.3.0 リリース
 
 **ブランチ**: `sonnet/search-and-feature-table` → `main`にマージ

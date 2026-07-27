@@ -46,6 +46,41 @@ var FAG_LABEL_PLACEMENTS = [];
 // rather than something layer-control.js could toggle per layer).
 var FAG_LABELS_ENABLED = true;
 
+/* Map-unit label sizes (QGIS マップ単位/メートル(地図単位) font size -
+   the label is meant to cover a real-world size, e.g. text sized to
+   the building it names, so it grows and shrinks with the zoom instead
+   of staying a constant screen size). style_extractor exports those as
+   `fontSizeMeters` / `buffer.widthMeters`; everything else keeps the
+   fixed px `fontSize` / `buffer.width`.
+
+   The px floor keeps a zoomed-out label readable rather than letting it
+   collapse into an illegible smudge (the equivalent of the 0.5px
+   hairline floor map-unit line weights use); the ceiling only guards
+   against a single label swallowing the viewport when zoomed far in. */
+var FAG_LABEL_MIN_PX = 6;
+var FAG_LABEL_MAX_PX = 200;
+
+function fagLabelFontSize(map, labelStyle) {
+  if (labelStyle && labelStyle.fontSizeMeters) {
+    var px = fagMetersToPixels(map, labelStyle.fontSizeMeters);
+    // Rounded so panning/zoom jitter can't invalidate the cached text
+    // metrics (see computeLabelPlacements) on every single frame.
+    return Math.round(Math.max(FAG_LABEL_MIN_PX, Math.min(FAG_LABEL_MAX_PX, px)));
+  }
+  return (labelStyle && labelStyle.fontSize) || 12;
+}
+
+function fagLabelBufferWidth(map, labelStyle) {
+  var buffer = labelStyle && labelStyle.buffer;
+  if (!buffer) return 0;
+  if (buffer.widthMeters) {
+    // Same tight cap style_extractor applies to px halos: hundreds of
+    // dense labels with big halos merge into one opaque block.
+    return Math.min(4, fagMetersToPixels(map, buffer.widthMeters));
+  }
+  return buffer.width || 0;
+}
+
 function initLabelLayer(map) {
   var pane = map.createPane('fag-labels');
   // Above markerPane (600) so labels overlay markers, below popupPane
@@ -141,13 +176,14 @@ function redrawLabels(map, canvas, ctx) {
   placements.forEach(function (p) {
     var m = p.entry.metrics;
     var labelStyle = p.entry.labelStyle || {};
+    var bufferWidth = fagLabelBufferWidth(map, labelStyle);
     ctx.font = m.font;
     var cx = p.rect.left + m.width / 2;
     for (var i = 0; i < m.lines.length; i++) {
       var y = p.rect.top + i * m.lineHeight;
-      if (labelStyle.buffer && labelStyle.buffer.width) {
+      if (bufferWidth) {
         ctx.strokeStyle = labelStyle.buffer.color || '#ffffff';
-        ctx.lineWidth = labelStyle.buffer.width * 2;
+        ctx.lineWidth = bufferWidth * 2;
         ctx.strokeText(m.lines[i], cx, y);
       }
       ctx.fillStyle = labelStyle.color || '#333333';
@@ -169,7 +205,15 @@ function computeLabelPlacements(map, size) {
     var latlng = marker.getLatLng();
     if (!viewBounds.contains(latlng)) return;
 
-    var m = entry.metrics || (entry.metrics = measureLabelText(entry));
+    // Fixed-px labels measure once and hit the cache forever after; a
+    // map-unit label re-measures only when its rounded px size actually
+    // changes (i.e. on a zoom step, not on every pan frame).
+    var fontSize = fagLabelFontSize(map, entry.labelStyle);
+    var m = entry.metrics;
+    if (!m || entry.metricsFontSize !== fontSize) {
+      m = entry.metrics = measureLabelText(entry, fontSize);
+      entry.metricsFontSize = fontSize;
+    }
     if (!m.lines.length) return;
 
     var pt = map.latLngToContainerPoint(latlng);
@@ -217,19 +261,20 @@ function computeLabelPlacements(map, size) {
   return kept;
 }
 
-/* Measures the label's text block once per label (font/text never
-   change after load, so the result is cached on the registry entry by
-   the caller). Shares one detached canvas context - measureText does
-   no DOM layout, unlike the getBoundingClientRect calls the old
-   tooltip version needed. */
+/* Measures the label's text block at `fontSize` px. The text never
+   changes after load and the size only changes for map-unit labels on
+   a zoom step, so the caller caches the result on the registry entry
+   alongside the size it was measured at. Shares one detached canvas
+   context - measureText does no DOM layout, unlike the
+   getBoundingClientRect calls the old tooltip version needed. */
 var FAG_MEASURE_CTX = null;
 
-function measureLabelText(entry) {
+function measureLabelText(entry, fontSize) {
   if (!FAG_MEASURE_CTX) {
     FAG_MEASURE_CTX = document.createElement('canvas').getContext('2d');
   }
   var labelStyle = entry.labelStyle || {};
-  var fontSize = labelStyle.fontSize || 12;
+  fontSize = fontSize || 12;
   var family = labelStyle.fontFamily
     ? '"' + labelStyle.fontFamily + '", "Noto Sans JP", sans-serif'
     : '"Noto Sans JP", sans-serif';

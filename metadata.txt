@@ -11,6 +11,7 @@ about=Pick any number of layers from the current QGIS project and export a self-
 changelog=0.3.1
       - Plugin dialog UI is now translated to English for any non-Japanese QGIS locale (Japanese stays the default for a Japanese locale)
       - A few leftover Japanese strings in the exported web map's UI (search placeholder, layer panel, label toggle, result/row counts) are now in English
+      - Map-unit (meter) label font sizes are preserved: labels sized in map units now grow and shrink with the zoom level like in QGIS, instead of exporting at a fixed screen size. Label halos in map units scale the same way.
     0.3.0
       - Cross-layer text search bar in the header; clicking a result zooms to the feature and opens its popup
       - Per-layer attribute table (bottom-left panel): virtualized scrolling for 1,000+ features, sortable columns (asc/desc), row click zooms to the feature

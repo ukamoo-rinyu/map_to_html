@@ -24,14 +24,21 @@ var FAG_MAPUNIT_PATHS = [];
 // earth circumference 40075016.686m / 256px.
 var FAG_MERCATOR_M_PER_PX_Z0 = 156543.03392;
 
-function fagMapUnitWeight(map, meters) {
+/* Screen px covered by `meters` of ground at the map's current zoom and
+   center latitude. Shared by the line/outline weights below and by
+   label-layer.js's map-unit font sizes. */
+function fagMetersToPixels(map, meters) {
   var lat = map.getCenter().lat * Math.PI / 180;
   var metersPerPixel = FAG_MERCATOR_M_PER_PX_Z0 * Math.abs(Math.cos(lat)) /
     Math.pow(2, map.getZoom());
+  return meters / metersPerPixel;
+}
+
+function fagMapUnitWeight(map, meters) {
   // Floor at a hairline rather than 0 so a zoomed-out road layer stays
   // faintly visible (matching how QGIS still draws sub-pixel-wide map
   // unit lines as thin hairlines instead of dropping them).
-  return Math.max(0.5, meters / metersPerPixel);
+  return Math.max(0.5, fagMetersToPixels(map, meters));
 }
 
 function fagUpdateMapUnitWeights(map) {
