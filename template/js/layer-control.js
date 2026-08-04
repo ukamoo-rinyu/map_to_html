@@ -272,16 +272,22 @@ function renderLayerTree(node, containerEl, map) {
       var checkboxId = 'layer-toggle-' + layerConfig.id;
       var li = document.createElement('li');
       li.className = 'fag-layer-item';
-      li.innerHTML = '<input type="checkbox" id="' + checkboxId + '"' +
+      // Checkbox + swatch + name share one flex row; a categorized
+      // layer's category list becomes a sibling BELOW that row, so a
+      // long layer name wrapping can't push the checkbox out of line.
+      var itemRow = document.createElement('div');
+      itemRow.className = 'fag-layer-item-row';
+      itemRow.innerHTML = '<input type="checkbox" id="' + checkboxId + '"' +
         (layerConfig.defaultVisible ? ' checked' : '') + '>' +
         buildLegendSwatchHtml(item.style) +
         '<label for="' + checkboxId + '"></label>';
-      li.querySelector('label').textContent = layerConfig.label;
+      itemRow.querySelector('label').textContent = layerConfig.label;
+      li.appendChild(itemRow);
       // A categorized layer lists each of its categories underneath,
       // so the panel matches what QGIS's own legend shows for it.
       var categoryList = buildCategoryLegendHtml(item.categoryLegend);
       if (categoryList) li.appendChild(categoryList);
-      var checkbox = li.querySelector('input');
+      var checkbox = itemRow.querySelector('input');
       checkbox.addEventListener('change', function (e) {
         if (e.target.checked) {
           layerGroup.addTo(map);
@@ -377,9 +383,15 @@ function buildCategoryLegendHtml(categoryLegend) {
   categoryLegend.entries.forEach(function (entry) {
     var li = document.createElement('li');
     li.innerHTML = buildLegendSwatchHtml(entry.style) + '<span></span>';
+    // A category can legitimately have a blank legend label in QGIS -
+    // most often the "all other values" catch-all, which QGIS leaves
+    // unnamed. Rendering that as a bare swatch with no text next to it
+    // reads as a bug, so fall back to the raw classification value and
+    // finally to an explicit placeholder.
+    var text = entry.label || entry.value || '(other)';
     // textContent, not innerHTML - a category label is raw QGIS data and
     // can contain <, & or quotes.
-    li.querySelector('span:last-child').textContent = entry.label;
+    li.querySelector('span:last-child').textContent = text;
     ul.appendChild(li);
   });
   return ul;

@@ -6,7 +6,7 @@ from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QGroupBox,
     QCheckBox, QRadioButton, QButtonGroup, QSpinBox, QDoubleSpinBox,
-    QComboBox, QLineEdit, QSlider,
+    QComboBox, QLineEdit, QSlider, QScrollArea, QFrame,
 )
 
 
@@ -24,7 +24,23 @@ class DisplayTab(QWidget):
         ]
 
     def _build_ui(self):
-        root = QVBoxLayout(self)
+        # This tab's content is taller than a 1080p screen once every
+        # settings group is present, and a QDialog can't be resized (or
+        # dragged) smaller than its layout's minimum size - so the
+        # window grew past the bottom of the screen and the 生成 button
+        # and Close button became unreachable. Putting the content in a
+        # scroll area decouples the dialog's minimum height from it.
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        content = QWidget()
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
+
+        root = QVBoxLayout(content)
 
         grp_size = QGroupBox(self.tr('画面サイズ・レスポンシブ'))
         lay_size = QVBoxLayout(grp_size)

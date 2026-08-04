@@ -186,23 +186,27 @@ html, body {
    the group-wrapper <li> below and - being an ID selector - would win
    on specificity over ".fag-layer-group { display: block }", forcing
    the group's title+sublist into a flex row instead of stacking them). */
+/* A block, with the checkbox/swatch/name kept together in their own
+   flex row - a categorized layer appends its category sublist as a
+   second child, which then sits below that row. Making the <li> itself
+   the flex container (with wrapping to fit the sublist) instead let a
+   long layer name wrap onto its own flex line, leaving the checkbox and
+   swatch stranded on the line above it. */
 .fag-layer-item {
+  display: block;
+  padding: 3px 0;
+}
+.fag-layer-item-row {
   display: flex;
   align-items: center;
-  /* A categorized layer appends a category sublist as a third child;
-     wrapping lets it drop to its own full-width line under the layer
-     name instead of being squeezed in beside it. */
-  flex-wrap: wrap;
   gap: 6px;
-  padding: 3px 0;
 }
 .fag-layer-item label { cursor: pointer; }
 
 /* ---- Per-category legend rows (spec item 3) ---- */
 .fag-legend-categories {
-  flex: 0 0 100%;
   list-style: none;
-  margin: 2px 0 2px 20px;
+  margin: 2px 0 2px 22px;
   padding: 0;
 }
 .fag-legend-categories li {
@@ -439,6 +443,26 @@ html, body {
   max-height: calc(100vh - 76px);
 }
 #feature-table-panel.fag-collapsed { max-height: none; }
+
+/* The feature table owns the bottom-left corner (left/bottom 10px,
+   360px wide), which is also where a "左下" scale bar lands - they
+   overlapped. Shift Leaflet's bottom-left control corner clear of the
+   panel's right edge instead of moving it above the panel: the table
+   grows UPWARD as it expands, so anything stacked above it gets
+   covered as soon as the user opens it, whereas the panel's width is
+   fixed. Scoped to .fag-has-feature-table (set by display-settings.js)
+   so a map without the table keeps the scale bar in the true corner. */
+.fag-has-feature-table .leaflet-bottom.leaflet-left {
+  margin-left: 372px;
+}
+@media (max-width: 520px) {
+  /* Too narrow to sit beside the panel - go above it instead. The
+     collapsed header is ~34px tall, plus the panel's own 10px offset. */
+  .fag-has-feature-table .leaflet-bottom.leaflet-left {
+    margin-left: 0;
+    margin-bottom: 44px;
+  }
+}
 #feature-table-header {
   display: flex;
   align-items: center;

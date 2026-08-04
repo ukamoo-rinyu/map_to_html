@@ -34,7 +34,7 @@ class FacilityAppGeneratorDialog(QDialog):
         super().__init__(parent)
         self.iface = iface
         self.setWindowTitle(self.tr('Map to HTML'))
-        self.resize(760, 640)
+        self._resize_to_fit_screen(760, 640)
         # Explicitly modeless (plugin.py opens it with show(), not
         # exec()): the user has to be able to keep working in QGIS -
         # changing a layer's symbology, adding a layer - while this is
@@ -43,6 +43,20 @@ class FacilityAppGeneratorDialog(QDialog):
         self.setModal(False)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMinMaxButtonsHint)
         self._build_ui()
+
+    def _resize_to_fit_screen(self, width, height):
+        """Open at the preferred size, but never taller/wider than the
+        screen actually has room for. A dialog that opens larger than
+        the desktop can't be shrunk back on Windows once its title bar
+        is off-screen, which stranded the 生成/閉じる buttons out of
+        reach as this dialog's settings grew."""
+        try:
+            available = QApplication.primaryScreen().availableGeometry()
+            width = min(width, available.width() - 60)
+            height = min(height, available.height() - 80)
+        except Exception:
+            pass
+        self.resize(max(width, 480), max(height, 360))
 
     def _build_ui(self):
         root = QVBoxLayout(self)
