@@ -489,6 +489,27 @@ html, body {
   background: rgba(255, 212, 0, 0.28);
 }
 
+/* ---- Thinning notice (spec item 6-B) ----
+   Top-center, above the map but clear of the layer panel's top-right
+   corner; pointer-events:none so it can never intercept a map click. */
+#thinning-notice {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 999;
+  pointer-events: none;
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: rgba(59, 70, 86, 0.88);
+  color: #fff;
+  font-size: 11px;
+  white-space: nowrap;
+  max-width: calc(100vw - 40px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ---- Loading overlay (spec item 8, "真っ白な画面が一番つらい") ----
    Sits above the map but below the panels' z-index 1000 stacking so it
    never traps a click once removed. Removed outright (not just hidden)

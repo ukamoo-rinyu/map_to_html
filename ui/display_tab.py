@@ -293,6 +293,40 @@ class DisplayTab(QWidget):
         lay_search_list.addWidget(self.chk_feature_table)
         root.addWidget(grp_search_list)
 
+        # ---- Point thinning at wide zooms (spec item 6-B) -------------
+        grp_thin = QGroupBox(self.tr('広域表示時の間引き'))
+        lay_thin = QVBoxLayout(grp_thin)
+        self.chk_thinning = QCheckBox(
+            self.tr('広域表示のときポイントを間引いて表示する')
+        )
+        self.chk_thinning.setToolTip(self.tr(
+            '指定したズームより広域では、画面を格子に区切って1マスにつき1件だけ\n'
+            '描画し、密集した点が団子にならないようにします。\n'
+            '※間引くのは「描画」だけです。検索・一覧表・CSV出力には全件が\n'
+            '　含まれますし、拡大すれば全件表示に戻ります。'
+        ))
+        self.chk_thinning.toggled.connect(self._update_thinning_enabled)
+        lay_thin.addWidget(self.chk_thinning)
+
+        row_thin = QHBoxLayout()
+        row_thin.addWidget(QLabel(self.tr('このズーム未満で間引く:')))
+        self.sp_thin_zoom = QSpinBox()
+        self.sp_thin_zoom.setRange(0, 24)
+        self.sp_thin_zoom.setValue(14)
+        row_thin.addWidget(self.sp_thin_zoom)
+        row_thin.addWidget(QLabel(self.tr('格子の大きさ(px):')))
+        self.sp_thin_grid = QSpinBox()
+        self.sp_thin_grid.setRange(8, 200)
+        self.sp_thin_grid.setValue(32)
+        row_thin.addWidget(self.sp_thin_grid)
+        row_thin.addStretch()
+        lay_thin.addLayout(row_thin)
+        lay_thin.addWidget(QLabel(self.tr(
+            '間引いている間は「一部の地物のみ表示中」と画面に表示されます。'
+        )))
+        self._update_thinning_enabled()
+        root.addWidget(grp_thin)
+
         # ---- Selection + data export (spec item 9) --------------------
         grp_export = QGroupBox(self.tr('地物の選択・データ出力'))
         lay_export = QVBoxLayout(grp_export)
@@ -345,6 +379,11 @@ class DisplayTab(QWidget):
         enabled = self.chk_opacity_override.isChecked()
         self.sl_opacity.setEnabled(enabled)
         self.lb_opacity.setEnabled(enabled)
+
+    def _update_thinning_enabled(self):
+        enabled = self.chk_thinning.isChecked()
+        self.sp_thin_zoom.setEnabled(enabled)
+        self.sp_thin_grid.setEnabled(enabled)
 
     def _update_selection_enabled(self):
         enabled = self.chk_selection.isChecked()
@@ -446,6 +485,13 @@ class DisplayTab(QWidget):
                 }
                 if (self.chk_selection.isChecked() and self.chk_feature_table.isChecked())
                 else None
+            ),
+            'thinning': (
+                {
+                    'belowZoom': self.sp_thin_zoom.value(),
+                    'gridPx': self.sp_thin_grid.value(),
+                }
+                if self.chk_thinning.isChecked() else None
             ),
             'popupShowEmpty': self.chk_popup_show_empty.isChecked(),
             'popupLinkifyUrls': self.chk_popup_linkify.isChecked(),

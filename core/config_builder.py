@@ -62,6 +62,8 @@ def build_config(settings):
             # off - selection.js then adds no selection handlers and the
             # export bar stays hidden (spec item 9).
             'selection': display.get('selection') or None,
+            # Point thinning at wide zooms (spec item 6-B). None = off.
+            'thinning': display.get('thinning') or None,
             # Scale bar (spec item 1) - omitted entirely rather than
             # emitted as false, so the template can skip the control.
             'scaleBar': display.get('scaleBar') or None,
@@ -84,6 +86,11 @@ def build_config(settings):
                 # the root fix for unreadably long column names (spec
                 # item 7-4). Omitted when the layer sets no aliases.
                 'fieldAliases': dict(layer.get('fieldAliases') or {}),
+                # Zoom levels this layer is drawn at (spec item 6-A) -
+                # from QGIS's 縮尺に応じた表示設定, or the per-layer
+                # 最小ズーム column. Absent = always drawn.
+                'minZoom': layer.get('minZoom'),
+                'maxZoom': layer.get('maxZoom'),
             }
             for layer in settings.get('layers', [])
         ],

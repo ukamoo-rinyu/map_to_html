@@ -89,6 +89,98 @@ function fagRemoveLoadingOverlay() {
    event-loop turns - FAG_FEATURES_BY_LAYER (search, feature table) and
    FAG_LABEL_REGISTRY (label layer) aren't fully populated until it
    fires. */
+/* Every built layer, with the two independent things that decide
+   whether it's currently on the map: the user's checkbox, and the
+   layer's own zoom range (spec item 6-A). Keeping both in one place is
+   what stops them fighting - a zoom change must not resurrect a layer
+   the user unchecked, and re-checking a layer must not force it to
+   appear outside its zoom range. */
+var FAG_LAYER_VISIBILITY = [];
+
+/* Marker layers eligible for grid thinning (spec item 6-B):
+   {group, markers: [{marker, lat, lng}]}. `group` is the L.geoJSON
+   FeatureGroup; thinning adds/removes markers from it, so the features
+   themselves are untouched - search, the feature table and CSV export
+   all still see every one of them, which the spec calls out as the
+   thing not to get wrong ("地物そのものを間引いて出力してしまうこと"). */
+var FAG_THINNING_LAYERS = [];
+
+function fagLayerAllowedAtZoom(layerConfig, zoom) {
+  if (layerConfig.minZoom !== undefined && layerConfig.minZoom !== null &&
+      zoom < layerConfig.minZoom) return false;
+  if (layerConfig.maxZoom !== undefined && layerConfig.maxZoom !== null &&
+      zoom > layerConfig.maxZoom) return false;
+  return true;
+}
+
+function fagApplyLayerVisibility(map) {
+  var zoom = map.getZoom();
+  var changed = false;
+  FAG_LAYER_VISIBILITY.forEach(function (record) {
+    var shouldShow = record.checked && fagLayerAllowedAtZoom(record.config, zoom);
+    var isShown = map.hasLayer(record.layerGroup);
+    if (shouldShow && !isShown) {
+      record.layerGroup.addTo(map);
+      changed = true;
+    } else if (!shouldShow && isShown) {
+      map.removeLayer(record.layerGroup);
+      changed = true;
+    }
+  });
+  if (changed) {
+    // Re-assert configured click priority: a layer that has just been
+    // re-added sits at the end of the canvas draw order regardless of
+    // where it belongs, so the whole stack is replayed in config order
+    // (same pass, and same reasoning, as the initial load).
+    FAG_LAYER_VISIBILITY.forEach(function (record) {
+      if (map.hasLayer(record.layerGroup)) bringLayerToFront(record.layerGroup);
+    });
+  }
+}
+
+/* Grid thinning: below `belowZoom`, keep only the first marker falling
+   in each `gridPx`-sized cell. The grid is measured in degrees at the
+   current zoom rather than in screen space, so panning doesn't reshuffle
+   which markers are showing - that would both flicker and cost a full
+   pass on every drag. */
+function fagApplyThinning(map, settings) {
+  if (!settings || !FAG_THINNING_LAYERS.length) return;
+  var thinning = map.getZoom() < settings.belowZoom;
+  var gridPx = settings.gridPx || 32;
+  var hiddenCount = 0;
+
+  var cellLat = 0;
+  var cellLng = 0;
+  if (thinning) {
+    var origin = map.getCenter();
+    var point = map.latLngToContainerPoint(origin);
+    var corner = map.containerPointToLatLng(L.point(point.x + gridPx, point.y + gridPx));
+    cellLat = Math.abs(corner.lat - origin.lat) || 1e-9;
+    cellLng = Math.abs(corner.lng - origin.lng) || 1e-9;
+  }
+
+  FAG_THINNING_LAYERS.forEach(function (record) {
+    var seen = {};
+    record.markers.forEach(function (item) {
+      var keep = true;
+      if (thinning) {
+        var key = Math.floor(item.lat / cellLat) + ',' + Math.floor(item.lng / cellLng);
+        keep = !seen[key];
+        seen[key] = true;
+      }
+      var present = record.group.hasLayer(item.marker);
+      if (keep && !present) record.group.addLayer(item.marker);
+      else if (!keep && present) record.group.removeLayer(item.marker);
+      if (!keep) hiddenCount += 1;
+    });
+  });
+
+  // Never thin silently - a reader who isn't told will read the gaps as
+  // missing data rather than as a display choice (spec: これは必須).
+  var notice = document.getElementById('thinning-notice');
+  if (notice) notice.classList.toggle('fag-hidden', hiddenCount === 0);
+}
+
 function initLayerControl(map, layersConfig, layersData, layersStyleData, display, onComplete) {
   onComplete = onComplete || function () {};
   if (!layersConfig || !layersConfig.length) {
@@ -155,7 +247,15 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, displa
       geojson, styleData, popupTrigger, layerInteractive, layerConfig.id,
       buildPopupContext(layerConfig, display)
     );
-    if (layerConfig.defaultVisible) layerGroup.addTo(map);
+    FAG_LAYER_VISIBILITY.push({
+      config: layerConfig, layerGroup: layerGroup, checked: !!layerConfig.defaultVisible,
+    });
+    // Both conditions have to hold to be on the map at load, not just
+    // the checkbox: a layer whose QGIS scale-based visibility says
+    // "not at this zoom" must start hidden even though it's checked.
+    if (layerConfig.defaultVisible && fagLayerAllowedAtZoom(layerConfig, map.getZoom())) {
+      layerGroup.addTo(map);
+    }
     // v0.3.0 spec feedback: even with the population/table order fixed
     // so layersConfig is genuinely back-to-front (data_tab.py task
     // 2-4), a polygon/line layer earlier in that order could STILL win
@@ -207,6 +307,25 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, displa
 
     renderLayerTree(tree, listEl, map);
     refreshGroupCheckboxStates();
+
+    // Zoom-driven layer visibility (item 6-A) and point thinning
+    // (item 6-B). Both are re-evaluated on zoomend only: the thinning
+    // grid is measured in degrees at the current zoom, so panning
+    // can't change the outcome and running on moveend would be pure
+    // cost. Wired only when something actually uses them.
+    var needsZoomVisibility = layersConfig.some(function (layerConfig) {
+      return (layerConfig.minZoom !== undefined && layerConfig.minZoom !== null) ||
+        (layerConfig.maxZoom !== undefined && layerConfig.maxZoom !== null);
+    });
+    var thinning = display.thinning || null;
+    if (needsZoomVisibility || thinning) {
+      map.on('zoomend', function () {
+        if (needsZoomVisibility) fagApplyLayerVisibility(map);
+        if (thinning) fagApplyThinning(map, thinning);
+      });
+      if (thinning) fagApplyThinning(map, thinning);
+    }
+
     fagRemoveLoadingOverlay();
     onComplete();
   }
@@ -337,7 +456,18 @@ function renderLayerTree(node, containerEl, map) {
       if (categoryList) li.appendChild(categoryList);
       var checkbox = itemRow.querySelector('input');
       checkbox.addEventListener('change', function (e) {
-        if (e.target.checked) {
+        // Record the user's intent, then let fagApplyLayerVisibility
+        // reconcile it with the layer's zoom range - checking a layer
+        // that's outside its zoom range must not force it onto the map
+        // (spec item 6-A).
+        var record = null;
+        FAG_LAYER_VISIBILITY.forEach(function (candidate) {
+          if (candidate.layerGroup === layerGroup) record = candidate;
+        });
+        if (record) {
+          record.checked = e.target.checked;
+          fagApplyLayerVisibility(map);
+        } else if (e.target.checked) {
           layerGroup.addTo(map);
         } else {
           map.removeLayer(layerGroup);
@@ -556,7 +686,8 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
   if (style.marker) {
     // Duplicate-coordinate spreading already happened once, across all
     // layers, in initLayerControl - see spreadOverlappingPointsAcrossLayers.
-    return L.geoJSON(geojson, {
+    var thinnable = [];
+    var markerLayer = L.geoJSON(geojson, {
       pointToLayer: function (feature, latlng) {
         var props = feature.properties || {};
         var resolved = resolveCategoryStyle(byCategory, props);
@@ -572,9 +703,14 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
           bindPopupIfAny(hit, props, popupTrigger, popupCtx);
           if (popupTrigger !== 'none') bindHoverHighlight(hit, visual);
         }
+        thinnable.push({ marker: marker, lat: latlng.lat, lng: latlng.lng });
         return marker;
       },
     });
+    if (thinnable.length) {
+      FAG_THINNING_LAYERS.push({ group: markerLayer, markers: thinnable });
+    }
+    return markerLayer;
   }
 
   if (style.line) {

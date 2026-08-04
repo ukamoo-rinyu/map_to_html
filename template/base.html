@@ -32,6 +32,12 @@
           <div id="loading-text">Loading…</div>
         </div>
       </div>
+      <!-- Shown whenever grid thinning is actually hiding something.
+           Silently dropping features reads as missing data, so this is
+           not optional (spec item 6-B). -->
+      <div id="thinning-notice" class="fag-hidden">
+        Showing some features only — zoom in to see them all
+      </div>
       <div id="layer-panel" class="fag-hidden">
         <div id="layer-panel-header">
           <span id="layer-panel-title">Layers</span>

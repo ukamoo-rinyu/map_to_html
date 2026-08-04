@@ -1,6 +1,63 @@
 # -*- coding: utf-8 -*-
 """Helpers for reading layers out of the current QGIS project."""
+import math
+
 from qgis.core import QgsProject, QgsVectorLayer, QgsRasterLayer, QgsLayerTreeNode
+
+
+# The map scale denominator Leaflet/OSM zoom level 0 corresponds to at
+# 96 dpi on the equator; each zoom level halves it. This is the same
+# constant every "scale <-> web map zoom" table is built from.
+_SCALE_DENOMINATOR_AT_ZOOM_0 = 559082264.028
+
+
+def _scale_to_zoom(scale_denominator):
+    """Leaflet zoom level for a QGIS scale denominator (1:`scale`).
+    Returns None for 0/None, which is how QGIS spells "no limit".
+
+    Approximate by nature: QGIS's scale is measured at the map canvas's
+    center latitude, while this constant is the equator value, so the
+    two drift apart the further north the data sits. For deciding
+    "roughly when should this layer appear" that's well within
+    tolerance - and the user can override the number per layer anyway.
+    """
+    try:
+        scale = float(scale_denominator)
+    except (TypeError, ValueError):
+        return None
+    if scale <= 0:
+        return None
+    return math.log2(_SCALE_DENOMINATOR_AT_ZOOM_0 / scale)
+
+
+def scale_visibility_zoom_range(layer):
+    """{'min': int, 'max': int} of Leaflet zoom levels for a layer that
+    has QGIS's 縮尺に応じた表示設定 enabled, or None when it doesn't
+    (spec item 6-A: "QGISの設定が済んでいればそれを自動で読み取る").
+
+    QGIS's naming is the opposite way round from a web map's: its
+    `minimumScale` is the most zoomed-OUT limit (the biggest
+    denominator), so it maps to the layer's MINIMUM zoom level, and
+    `maximumScale` maps to the maximum. Getting these two backwards
+    would hide the layer at exactly the zooms it should be visible at.
+    """
+    try:
+        if not layer.hasScaleBasedVisibility():
+            return None
+    except AttributeError:
+        return None
+
+    min_zoom = _scale_to_zoom(layer.minimumScale())
+    max_zoom = _scale_to_zoom(layer.maximumScale())
+    if min_zoom is None and max_zoom is None:
+        return None
+
+    result = {}
+    if min_zoom is not None:
+        result['min'] = int(math.floor(min_zoom))
+    if max_zoom is not None:
+        result['max'] = int(math.ceil(max_zoom))
+    return result or None
 
 
 def field_aliases(layer):

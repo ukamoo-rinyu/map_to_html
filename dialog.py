@@ -223,6 +223,8 @@ class FacilityAppGeneratorDialog(QDialog):
                             'showPopup': entry.get('show_popup', True),
                             'groupPath': layer_utils.get_layer_group_path(entry['layer'].id()),
                             'fieldAliases': layer_utils.field_aliases(entry['layer']),
+                            'minZoom': entry.get('min_zoom'),
+                            'maxZoom': entry.get('max_zoom'),
                         }
                         for entry in layers
                         if entry['id'] not in skipped_ids

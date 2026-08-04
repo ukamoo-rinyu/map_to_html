@@ -36,9 +36,10 @@ COL_GROUP = 0
 COL_NAME = 1
 COL_TYPE = 2
 COL_OPACITY = 3
-COL_FIELDS = 4
-COL_POPUP = 5
-COL_VISIBLE = 6
+COL_MIN_ZOOM = 4
+COL_FIELDS = 5
+COL_POPUP = 6
+COL_VISIBLE = 7
 
 
 class DataTab(QWidget):
@@ -93,15 +94,17 @@ class DataTab(QWidget):
             '地図上で手前（上）に描画され、凡例（レイヤーパネル）でもこの順に並びます。'
         )))
 
-        self.table = QTableWidget(0, 7)
+        self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels([
             self.tr('グループ'), self.tr('レイヤー名（地図上の表示ラベル）'),
-            self.tr('種別'), self.tr('透過率'), self.tr('ポップアップ項目'),
+            self.tr('種別'), self.tr('透過率'), self.tr('最小ズーム'),
+            self.tr('ポップアップ項目'),
             self.tr('ポップアップ表示'), self.tr('初期表示ON'),
         ])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(COL_NAME, QHeaderView.ResizeMode.Stretch)
-        for col in (COL_GROUP, COL_TYPE, COL_OPACITY, COL_FIELDS, COL_POPUP, COL_VISIBLE):
+        for col in (COL_GROUP, COL_TYPE, COL_OPACITY, COL_MIN_ZOOM,
+                    COL_FIELDS, COL_POPUP, COL_VISIBLE):
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -307,9 +310,16 @@ class DataTab(QWidget):
                 initial_config = field_config.default_field_config(layer)
             opacity = None  # not applicable to vector layers
 
+        # QGIS's own scale-based visibility, converted to a Leaflet zoom
+        # level, becomes this layer's default 最小ズーム (spec item 6-A).
+        zoom_range = layer_utils.scale_visibility_zoom_range(layer)
+        min_zoom = (zoom_range or {}).get('min')
+
         self._entries.append({
             'layer_id': layer_id,
             'label': layer.name(),
+            'min_zoom': min_zoom,
+            'max_zoom': (zoom_range or {}).get('max'),
             # The QGIS layer name this entry's label was derived from.
             # Comparing it against 'label' is how reload_from_project
             # tells "the user renamed this on purpose" (keep it) from
@@ -391,6 +401,24 @@ class DataTab(QWidget):
             # (style_extractor.py extracts it automatically) - no
             # separate control needed here.
             self.table.setCellWidget(row, COL_OPACITY, self._centered(QLabel('—')))
+
+        # spec item 6-A: pre-filled from QGIS's own 縮尺に応じた表示設定
+        # when the layer has one, so the common case needs no input here
+        # at all; 0 means "always visible".
+        spn_zoom = QSpinBox()
+        spn_zoom.setRange(0, 24)
+        spn_zoom.setSpecialValueText(self.tr('制限なし'))
+        spn_zoom.setValue(int(entry.get('min_zoom') or 0))
+        spn_zoom.setToolTip(self.tr(
+            'この値より小さい（広域の）ズームでは、このレイヤーを地図に描画しません。\n'
+            '広域表示で地物が多すぎて見づらい場合に使います。\n'
+            'QGIS側で「縮尺に応じた表示設定」をしてあるレイヤーは、その値から\n'
+            '自動で換算した初期値が入っています。0（制限なし）で常に表示します。'
+        ))
+        spn_zoom.valueChanged.connect(
+            lambda value, e=entry: e.__setitem__('min_zoom', value or None)
+        )
+        self.table.setCellWidget(row, COL_MIN_ZOOM, self._centered(spn_zoom))
 
         if layer_type == 'vector':
             cell = QWidget()
@@ -575,6 +603,8 @@ class DataTab(QWidget):
                 'default_visible': entry['default_visible'],
                 'show_popup': entry.get('show_popup', True),
                 'opacity': entry.get('opacity'),
+                'min_zoom': entry.get('min_zoom'),
+                'max_zoom': entry.get('max_zoom'),
                 'field_order': (
                     field_config.visible_field_order(entry['field_config']) if entry['field_config'] else None
                 ),
