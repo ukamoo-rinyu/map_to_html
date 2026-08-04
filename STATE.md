@@ -312,19 +312,76 @@ z11→9件 / z12→16件 / z13→63件 / z15→600件（間引き解除）と段
 復活しない、範囲外でチェックし直しても即表示されない、範囲内に戻ると
 表示される、を確認。
 
+### v0.4.0 第4弾: 項目10 斜線（パターン）塗りつぶし（2026-08-05、同日）
+
+**前提の設計変更: レンダラをレイヤーごとに選ぶ**
+SVG `<pattern>` はCanvasレンダラでは使えない。`map-core.js` の
+`renderer: L.canvas()`（マップ全体）はそのまま残し、**パターン塗りが必要な
+レイヤーだけ** `L.svg()` を渡すようにした（`buildStyledLayer` に
+`patternRenderer` 引数を追加）。斜線塗りのレイヤー（区域界・用途地域など）は
+件数が少ないので、性能と見た目を両立できるという指示書の判断どおり。
+
+**専用ペインに入れた理由（重要）**: SVGレイヤーと共有canvasを同じ
+overlayPane に入れると、両者は兄弟要素なので**重なり順がDOMの生成順**に
+なり、設定したレイヤー順に従わない。斜線の背景ポリゴンがポイントの上に
+来てクリックを奪う事故が起きうる。`fagPatternPane`（zIndex 395、
+overlayPaneの400の直下）に固定することで「斜線塗り＝背景」という
+予測可能な結果にした。
+
+**新規 `template/js/fill-pattern.js`**
+- (A) Qtブラシスタイル: `_QT_BRUSH_PATTERNS`（Python側）で
+  bdiag/fdiag/diagcross/hor/ver/cross/dense1〜7 に対応付け。
+  角度は `patternTransform="rotate()"` で付ける
+- (B) `QgsLinePatternFillSymbolLayer`: `lineAngle()`/`distance()`/
+  `lineWidth()`/`color()` を読んで `<pattern>` を動的生成。
+  **角度の符号**: QGISのlineAngleは水平から時計回り、SVGの
+  patternTransform rotate() も画面座標系（y下向き）で時計回りなので、
+  符号反転は不要（指示書の「要確認」項目）
+- `patternUnits="userSpaceOnUse"` ＝ ズームしてもパターンの目が
+  詰まったり広がったりしない
+- **同じスタイルなら1つの定義を使い回す**（スタイル値をキーにした
+  `FAG_PATTERN_IDS`）。地物ごとに作らない
+- **Leafletの `_updateStyle` が `fill` 属性を上書きする**ので、
+  `setStyle` をラップしてパターンを再適用している。これがないと
+  ホバー効果やマップ単位の線幅再計算のたびに斜線がベタ塗りに戻る
+- **凡例スウォッチは自前の `<defs>` を持つインラインSVG**。凡例は
+  地図の `<svg>` の外にある通常のDOMなので、地図側の defs を参照できない
+  （指示書が「忘れやすい」と書いている点）
+
+**(C) 未対応パターンは警告する**: `QgsPointPatternFillSymbolLayer`/
+`QgsSVGFillSymbolLayer`/`QgsRasterFillSymbolLayer`/
+`QgsRandomMarkerFillSymbolLayer` はべた塗りにフォールバックし、
+`extract_style(warnings=[])` に警告を積んで `dialog.py` の完了ダイアログに
+「以下は見た目が変わっている可能性があります」として表示する
+（黙って見た目が変わるのが一番困る＝指示書10-C）。
+
+**既知の制限**: `symbolLayer(0)` しか読まないので、線パターン塗りの下に
+別の輪郭シンボルレイヤーを重ねたポリゴンは、その輪郭が出力されない。
+
+**検証**: Qtブラシ10種＋線パターン(30度/12px間隔)＋通常塗りの
+12レイヤーで実測。
+- `fagPatternPane` の zIndex 395 < overlayPane 400 を確認
+- `<pattern>` 定義が11個、すべて `userSpaceOnUse`。bdiag=rotate(-45)、
+  fdiag=rotate(45)、diagcross=rotate(45)+2本、hor/ver=1本・回転なし、
+  dense1=3x3 → dense7=13x13 と間隔が広がることを確認
+- 線パターンが 12x12 / rotate(30) / 1本 = 指定どおり
+- 斜線11レイヤーのpathがすべて `fill="url(#...)"` を参照
+- **通常塗りのポリゴンはCanvasのまま**（SVGペインに入っていない）＝
+  レンダラの使い分けが効いている
+- **`setStyle`・mouseover・mouseout の後もパターンが維持される**ことを確認
+  （ラップが効いている）
+- 同一スタイルで `fagEnsurePattern` を2回呼んでも定義が増えない（dedup）
+- 未知のパターン種別は null を返す＝呼び出し側がべた塗りに落ちる
+- 凡例スウォッチ11個がすべて `<pattern>` を内包し `url(#)` を参照
+
 ### 未着手（指示書の残り）
 
-- **6** 重なり時の間引き表示（優先度C）
-- **10** 斜線（パターン）塗りつぶし（優先度C）
-- **8-⑥** レイヤーの遅延読み込み
+**指示書の11項目はすべて実装済み**（8-⑥ を除く。ユーザーが2026-08-05に
+「8-⑥は無理に対応しなくていい」と明示的に見送り）。
 
-**10 の設計上の注意**: SVG `<pattern>` は `L.canvas()` では使えない。現状は
-`map-core.js` で map 全体に `renderer: L.canvas()` を渡しているので、
-**レイヤーごとに `L.canvas()`/`L.svg()` を選べるようにする設計変更が先に要る**
-（大量の点レイヤー→Canvas、少数の斜線ポリゴン→SVG）。凡例スウォッチにも
-同じ `<pattern>` を参照させること（`buildLegendSwatchHtml`）。
+- **8-⑥** レイヤーの遅延読み込み … ユーザー判断により見送り
 
-**8-⑥ の設計上の注意（調査済み・要判断）**: 遅延読み込みは既存の3機能と
+**8-⑥ の設計上の注意（調査済み・将来やるなら要判断）**: 遅延読み込みは既存の3機能と
 真正面から衝突する。着手前にこの3つの解決方針を決めること。
 1. `spreadOverlappingPointsAcrossLayers` は**全マーカーレイヤーの地物を
    プールしてから**でないと重複座標を検出できない → Python側（エクスポート時）に

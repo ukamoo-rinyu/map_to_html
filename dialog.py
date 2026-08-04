@@ -167,6 +167,9 @@ class FacilityAppGeneratorDialog(QDialog):
                 layer_bundle = []
                 skipped_ids = set()
                 skip_messages = []
+                # Symbology that had to be approximated (spec item 10-C:
+                # a silently changed appearance is the worst outcome).
+                style_warnings = []
                 for index, entry in enumerate(layers):
                     self.output_tab.set_progress(
                         index, self.tr('レイヤーを書き出しています… ({0}/{1}) {2}').format(
@@ -192,7 +195,8 @@ class FacilityAppGeneratorDialog(QDialog):
                         continue
 
                     style = style_extractor.extract_style(
-                        entry['layer'], fill_opacity_override=fill_opacity_override
+                        entry['layer'], fill_opacity_override=fill_opacity_override,
+                        warnings=style_warnings,
                     )
                     label_evaluator = style_extractor.build_label_text_evaluator(entry['layer'])
                     geojson_path = os.path.join(tmp_dir, f'layer_{index}.geojson')
@@ -242,6 +246,9 @@ class FacilityAppGeneratorDialog(QDialog):
             message = self.tr('生成が完了しました:\n') + '\n'.join(written)
             if skip_messages:
                 message += '\n\n' + self.tr('以下のレイヤーはスキップされました:\n') + '\n'.join(skip_messages)
+            if style_warnings:
+                message += '\n\n' + self.tr('以下は見た目が変わっている可能性があります:\n') + \
+                    '\n'.join(dict.fromkeys(style_warnings))
             self.output_tab.set_result(message, is_error=False)
             if written:
                 # written's last entry is always the generated .html file

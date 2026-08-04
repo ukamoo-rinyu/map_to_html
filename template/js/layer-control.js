@@ -245,7 +245,11 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, displa
     var layerInteractive = layerConfig.showPopup !== false;
     var layerGroup = buildStyledLayer(
       geojson, styleData, popupTrigger, layerInteractive, layerConfig.id,
-      buildPopupContext(layerConfig, display)
+      buildPopupContext(layerConfig, display),
+      // A hatched polygon layer needs the SVG renderer (Canvas can't do
+      // <pattern>); everything else keeps the fast shared Canvas one.
+      fagStyleNeedsPattern(styleData) ? fagPatternRenderer(map) : null,
+      map
     );
     FAG_LAYER_VISIBILITY.push({
       config: layerConfig, layerGroup: layerGroup, checked: !!layerConfig.defaultVisible,
@@ -531,6 +535,11 @@ function buildLegendSwatchHtml(style) {
   }
   if (style.fill) {
     var f = style.fill;
+    // A hatched fill gets an inline-SVG swatch carrying its own copy of
+    // the pattern, so the legend and the map agree (spec item 10:
+    // "凡例のスウォッチにも同じパターンを描かないと地図と食い違う").
+    var patternSwatch = f.fillPattern ? fagPatternSwatchHtml(f) : null;
+    if (patternSwatch) return patternSwatch;
     var fillBg = (f.hasFill === false) ? 'transparent' : hexToRgba(f.fillColor, f.fillOpacity);
     var border = (f.hasStroke === false || !f.strokeWidth)
       ? '0'
@@ -654,7 +663,8 @@ function spreadOverlappingPointsAcrossLayers(layersConfig, layersData, layersSty
   });
 }
 
-function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId, popupCtx) {
+function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId, popupCtx,
+                          patternRenderer, map) {
   var style = (styleData && styleData.defaultStyle) || {};
   var byCategory = (styleData && styleData.byCategory) || null;
   // データ設定 tab's per-layer "ポップアップ表示" checkbox, unchecked.
@@ -782,6 +792,9 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
           stroke: fillStyle.hasStroke !== false && fillStyle.strokeWidth > 0,
           dashArray: fillStyle.dashArray || null,
           interactive: interactive,
+          // Only set for a hatched layer; null leaves Leaflet's default
+          // (the map-wide Canvas renderer) in place.
+          renderer: patternRenderer || undefined,
         };
       },
       onEachFeature: function (feature, layer) {
@@ -789,6 +802,9 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
         // Same map-unit scheme as the line branch, for polygon outlines.
         var resolved = resolveCategoryStyle(byCategory, (feature && feature.properties) || {});
         var fillStyle = (resolved && resolved.fill) || style.fill;
+        if (patternRenderer && fillStyle.fillPattern) {
+          fagApplyPatternToPath(layer, fagEnsurePattern(map, fillStyle));
+        }
         if (fillStyle.strokeWidthMeters) {
           FAG_MAPUNIT_PATHS.push({ path: layer, meters: fillStyle.strokeWidthMeters });
         }

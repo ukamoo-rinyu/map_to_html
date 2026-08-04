@@ -107,6 +107,24 @@ def _custom_dash_array(symbol_layer):
         return None
 
 
+# Qt::BrushStyle values -> the pattern vocabulary the template's SVG
+# <pattern> definitions implement (spec item 10-A). These cover the
+# fixed set QGIS's "塗りつぶしスタイル" dropdown offers, which the spec
+# notes is ~80% of real hatched-polygon usage. 0 (NoBrush) and 1
+# (SolidPattern) are handled separately - they mean "no fill" and "the
+# existing plain fill" rather than a pattern.
+_QT_BRUSH_PATTERNS = {
+    2: 'dense1', 3: 'dense2', 4: 'dense3', 5: 'dense4',
+    6: 'dense5', 7: 'dense6', 8: 'dense7',
+    9: 'hor', 10: 'ver', 11: 'cross',
+    12: 'bdiag', 13: 'fdiag', 14: 'diagcross',
+}
+
+# 1mm at 96dpi, for converting QGIS's mm-based pattern spacing to the
+# px the SVG <pattern> tile is measured in.
+_MM_TO_PX = 96.0 / 25.4
+
+
 def _color_alpha(color):
     """A QGIS color's own alpha channel (塗りつぶし色/枠線色の
     アルファ値) as 0.0-1.0."""
@@ -342,7 +360,7 @@ def _extract_line_style(symbol, meters_per_map_unit=None, layer_opacity=1.0):
 
 
 def _extract_fill_style(symbol, meters_per_map_unit=None, layer_opacity=1.0,
-                        fill_opacity_override=None):
+                        fill_opacity_override=None, warnings=None, layer_name=''):
     """Reference-layer polygon symbology (spec 4.2.1 'ポリゴン').
     A map-based stroke width exports as `strokeWidthMeters` alongside
     the px fallback, same scheme as _extract_line_style's widthMeters.
@@ -377,7 +395,25 @@ def _extract_fill_style(symbol, meters_per_map_unit=None, layer_opacity=1.0,
         _log_extract_warning('fill symbol layer', exc)
         symbol_layer = None
 
-    if symbol_layer is not None and hasattr(symbol_layer, 'brushStyle'):
+    warnings_list = warnings if warnings is not None else []
+    line_pattern = (
+        _line_pattern_fill(symbol_layer, opacity_scale)
+        if symbol_layer is not None and type(symbol_layer).__name__ == 'QgsLinePatternFillSymbolLayer'
+        else None
+    )
+
+    if line_pattern:
+        # 線パターン塗りつぶし: this symbol layer IS the hatch - it has no
+        # brushStyle and no stroke of its own. Note only symbolLayer(0)
+        # is read, so a polygon that stacks a separate outline layer
+        # under/over the hatch exports without that outline.
+        style['fillPattern'] = line_pattern
+        style['hasFill'] = True
+        style['fillColor'] = line_pattern.get('color', style['fillColor'])
+        style['fillOpacity'] = line_pattern.get('opacity', 1.0)
+        style['hasStroke'] = False
+        style['strokeWidth'] = 0
+    elif symbol_layer is not None and hasattr(symbol_layer, 'brushStyle'):
         # Genuine fill layer.
         try:
             color = symbol.color()
@@ -397,6 +433,18 @@ def _extract_fill_style(symbol, meters_per_map_unit=None, layer_opacity=1.0,
                 style['fillOpacity'] = 0
         except Exception as exc:
             _log_extract_warning('fill brush style', exc)
+        # A hatch/pattern fill (spec item 10). Qt's brush patterns paint
+        # the FILL color as the hatch itself over a transparent
+        # background, which is why fillColor doubles as the hatch color
+        # on the web side rather than needing a separate key.
+        pattern = _extract_fill_pattern(symbol_layer, opacity_scale, warnings_list, layer_name)
+        if pattern:
+            style['fillPattern'] = pattern
+    elif symbol_layer is not None and type(symbol_layer).__name__ in (
+            'QgsPointPatternFillSymbolLayer', 'QgsSVGFillSymbolLayer',
+            'QgsRasterFillSymbolLayer', 'QgsRandomMarkerFillSymbolLayer'):
+        # Out of scope, and the fallback must not be silent (spec 10-C).
+        _extract_fill_pattern(symbol_layer, opacity_scale, warnings_list, layer_name)
         try:
             stroke_color = symbol_layer.strokeColor()
             if stroke_color is not None:
@@ -484,6 +532,88 @@ def _extract_fill_style(symbol, meters_per_map_unit=None, layer_opacity=1.0,
     return style
 
 
+def _line_pattern_fill(symbol_layer, opacity_scale):
+    """A QgsLinePatternFillSymbolLayer ("線パターン塗りつぶし"), where
+    the angle/spacing/width/color are all free-form rather than one of
+    Qt's fixed brush styles (spec item 10-B). Returns the dict the
+    template turns into a generated <pattern>, or None if this isn't
+    that kind of symbol layer."""
+    if not hasattr(symbol_layer, 'lineAngle'):
+        return None
+    pattern = {'type': 'lines'}
+    try:
+        # QGIS measures lineAngle clockwise from horizontal (0 = a
+        # horizontal line). SVG's patternTransform rotate() is also
+        # clockwise in screen coordinates (y grows downward), so the
+        # angle carries over with the same sign - no negation.
+        pattern['angle'] = round(float(symbol_layer.lineAngle()), 2)
+    except Exception as exc:
+        _log_extract_warning('line pattern angle', exc)
+        pattern['angle'] = 45.0
+    try:
+        unit = (
+            symbol_layer.distanceUnit()
+            if hasattr(symbol_layer, 'distanceUnit') else QgsUnitTypes.RenderMillimeters
+        )
+        spacing = _to_px(float(symbol_layer.distance()), unit, 2.0 * _MM_TO_PX)
+        pattern['spacing'] = round(_clamp(spacing, 2.0, 100.0), 2)
+    except Exception as exc:
+        _log_extract_warning('line pattern spacing', exc)
+        pattern['spacing'] = 8.0
+    try:
+        unit = (
+            symbol_layer.lineWidthUnit()
+            if hasattr(symbol_layer, 'lineWidthUnit') else QgsUnitTypes.RenderMillimeters
+        )
+        width = _to_px(float(symbol_layer.lineWidth()), unit, 1.0)
+        pattern['lineWidth'] = round(_clamp(width, 0.3, 20.0), 2)
+    except Exception as exc:
+        _log_extract_warning('line pattern width', exc)
+        pattern['lineWidth'] = 1.0
+    try:
+        color = symbol_layer.color()
+        if color is not None:
+            pattern['color'] = color.name()
+            pattern['opacity'] = round(
+                _clamp(_color_alpha(color) * opacity_scale, 0.0, 1.0), 3
+            )
+    except Exception as exc:
+        _log_extract_warning('line pattern color', exc)
+    return pattern
+
+
+def _extract_fill_pattern(symbol_layer, opacity_scale, warnings, layer_name):
+    """The hatch/pattern fill for one polygon symbol layer, or None for
+    a plain solid fill (spec item 10).
+
+    Anything not covered - point-pattern fills, SVG fills, raster image
+    fills - deliberately falls back to a plain fill AND records a
+    warning. Silently changing how a layer looks is the outcome the
+    spec calls out as worst ("黙って見た目が変わるのが一番困る")."""
+    class_name = type(symbol_layer).__name__
+
+    if class_name == 'QgsLinePatternFillSymbolLayer':
+        return _line_pattern_fill(symbol_layer, opacity_scale)
+
+    if class_name in ('QgsPointPatternFillSymbolLayer', 'QgsSVGFillSymbolLayer',
+                      'QgsRasterFillSymbolLayer', 'QgsRandomMarkerFillSymbolLayer'):
+        warnings.append(
+            '「{0}」の塗りつぶし（{1}）はHTMLに変換できないため、'
+            'べた塗りで出力しました。'.format(layer_name, class_name)
+        )
+        return None
+
+    if hasattr(symbol_layer, 'brushStyle'):
+        try:
+            name = _QT_BRUSH_PATTERNS.get(int(symbol_layer.brushStyle()))
+        except Exception as exc:
+            _log_extract_warning('fill brush pattern', exc)
+            return None
+        if name:
+            return {'type': name}
+    return None
+
+
 def _extract_label_style(layer, meters_per_map_unit=None):
     """Returns (style_dict, labels_enabled).
 
@@ -550,7 +680,8 @@ def _extract_label_style(layer, meters_per_map_unit=None):
 
 
 def _style_for_symbol(symbol, geometry_type, meters_per_map_unit=None,
-                      layer_opacity=1.0, fill_opacity_override=None):
+                      layer_opacity=1.0, fill_opacity_override=None,
+                      warnings=None, layer_name=''):
     """Build the marker/line/fill sub-object for one symbol, matching
     whichever key `extract_style` uses for this geometry type. This is
     the single "one QGIS symbol -> one web style" seam every renderer
@@ -561,7 +692,8 @@ def _style_for_symbol(symbol, geometry_type, meters_per_map_unit=None,
         return {'line': _extract_line_style(symbol, meters_per_map_unit, layer_opacity)}
     if geometry_type == QgsWkbTypes.PolygonGeometry:
         return {'fill': _extract_fill_style(
-            symbol, meters_per_map_unit, layer_opacity, fill_opacity_override
+            symbol, meters_per_map_unit, layer_opacity, fill_opacity_override,
+            warnings, layer_name
         )}
     return {'marker': _extract_marker_style(symbol, layer_opacity, fill_opacity_override)}
 
@@ -640,7 +772,8 @@ def build_render_filter(layer):
 
 
 def _extract_category_styles(renderer, geometry_type, meters_per_map_unit=None,
-                             layer_opacity=1.0, fill_opacity_override=None):
+                             layer_opacity=1.0, fill_opacity_override=None,
+                             warnings=None, layer_name=''):
     """Return (field, {value_as_str: style}, fallback_style, legend) for
     a QgsCategorizedSymbolRenderer (spec 4.2.2/4.2.3).
 
@@ -671,7 +804,7 @@ def _extract_category_styles(renderer, geometry_type, meters_per_map_unit=None,
             _log_extract_warning('category render state', exc)
         style = _style_for_symbol(
             category.symbol(), geometry_type, meters_per_map_unit,
-            layer_opacity, fill_opacity_override,
+            layer_opacity, fill_opacity_override, warnings, layer_name,
         )
         key = _category_key(category.value())
         try:
@@ -688,7 +821,7 @@ def _extract_category_styles(renderer, geometry_type, meters_per_map_unit=None,
     return field, table, fallback, legend
 
 
-def extract_style(layer, fill_opacity_override=None):
+def extract_style(layer, fill_opacity_override=None, warnings=None):
     """Build the style.json block for a single layer: 'defaultStyle'
     always, plus 'byCategory' when the layer uses a
     QgsCategorizedSymbolRenderer (spec 4.2.2/4.2.3). Branches on
@@ -702,6 +835,12 @@ def extract_style(layer, fill_opacity_override=None):
     `fill_opacity_override` (0.0-1.0, from 表示設定 tab's "塗りの透過率
     を上書きする") replaces every extracted fill opacity with one flat
     value instead of using what QGIS says.
+
+    `warnings` is an optional list this appends human-readable messages
+    to for symbology that had to be approximated - currently
+    point-pattern/SVG/raster fills, which fall back to a plain fill.
+    dialog.py surfaces them in the completion dialog so a changed
+    appearance is never a silent surprise (spec item 10-C).
     """
     renderer = layer.renderer()
     symbol = None
@@ -715,6 +854,9 @@ def extract_style(layer, fill_opacity_override=None):
     # Layer-wide opacity multiplies into every symbol of this layer, so
     # it's read once here rather than per symbol.
     layer_opacity = _layer_opacity(layer)
+    if warnings is None:
+        warnings = []
+    layer_name = layer.name()
     if renderer is not None:
         if isinstance(renderer, QgsSingleSymbolRenderer):
             symbol = renderer.symbol()
@@ -730,7 +872,7 @@ def extract_style(layer, fill_opacity_override=None):
                 category_field, category_table, category_fallback, category_legend = (
                     _extract_category_styles(
                         renderer, layer.geometryType(), meters_per_map_unit,
-                        layer_opacity, fill_opacity_override,
+                        layer_opacity, fill_opacity_override, warnings, layer_name,
                     )
                 )
             except Exception as exc:
@@ -739,7 +881,8 @@ def extract_style(layer, fill_opacity_override=None):
 
     geometry_type = layer.geometryType()
     default_style = _style_for_symbol(
-        symbol, geometry_type, meters_per_map_unit, layer_opacity, fill_opacity_override
+        symbol, geometry_type, meters_per_map_unit, layer_opacity, fill_opacity_override,
+        warnings, layer_name
     )
     # QGIS's "その他すべての値" category is what an unmatched feature
     # actually renders as, so when the layer defines one it - not the

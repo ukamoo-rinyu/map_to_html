@@ -16,6 +16,7 @@ import os
 JS_MODULE_ORDER = [
     'display-settings.js',
     'style-renderer.js',
+    'fill-pattern.js',
     'map-core.js',
     'layer-control.js',
     'label-layer.js',
