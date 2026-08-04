@@ -2,10 +2,11 @@
 """Tab 2 (subset): screen size / responsive / initial view / zoom
 limits only (spec 3.1, Tab 2). Widgets (scale bar, geolocate, ...) and
 the layer-list panel are phase 2 (spec section 6)."""
+from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QGroupBox,
     QCheckBox, QRadioButton, QButtonGroup, QSpinBox, QDoubleSpinBox,
-    QComboBox, QLineEdit,
+    QComboBox, QLineEdit, QSlider, QScrollArea, QFrame,
 )
 
 
@@ -23,7 +24,23 @@ class DisplayTab(QWidget):
         ]
 
     def _build_ui(self):
-        root = QVBoxLayout(self)
+        # This tab's content is taller than a 1080p screen once every
+        # settings group is present, and a QDialog can't be resized (or
+        # dragged) smaller than its layout's minimum size - so the
+        # window grew past the bottom of the screen and the 生成 button
+        # and Close button became unreachable. Putting the content in a
+        # scroll area decouples the dialog's minimum height from it.
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        content = QWidget()
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
+
+        root = QVBoxLayout(content)
 
         grp_size = QGroupBox(self.tr('画面サイズ・レスポンシブ'))
         lay_size = QVBoxLayout(grp_size)
@@ -63,11 +80,18 @@ class DisplayTab(QWidget):
         lay_view = QVBoxLayout(grp_view)
         self.rb_autofit = QRadioButton(self.tr('データの範囲に自動フィット'))
         self.rb_autofit.setChecked(True)
+        self.rb_canvas = QRadioButton(self.tr('現在のQGIS画面の表示範囲を初期表示にする'))
+        self.rb_canvas.setToolTip(self.tr(
+            'HTMLの地図とQGISの画面では縦横比が異なるため、表示範囲は完全には一致しません。'
+            '指定した範囲が必ず収まるように表示されます。'
+        ))
         self.rb_manual = QRadioButton(self.tr('中心座標・ズームレベルを手動指定'))
         self.view_group = QButtonGroup(self)
         self.view_group.addButton(self.rb_autofit)
+        self.view_group.addButton(self.rb_canvas)
         self.view_group.addButton(self.rb_manual)
         lay_view.addWidget(self.rb_autofit)
+        lay_view.addWidget(self.rb_canvas)
 
         row_manual = QHBoxLayout()
         row_manual.addWidget(self.rb_manual)
@@ -127,6 +151,52 @@ class DisplayTab(QWidget):
         self._update_basemap_enabled()
         root.addWidget(grp_basemap)
 
+        # ---- Scale bar (spec item 1) ----------------------------------
+        grp_scale = QGroupBox(self.tr('スケールバー'))
+        lay_scale = QHBoxLayout(grp_scale)
+        self.chk_scalebar = QCheckBox(self.tr('スケールバーを表示する'))
+        self.chk_scalebar.setChecked(True)
+        self.chk_scalebar.toggled.connect(self._update_scalebar_enabled)
+        lay_scale.addWidget(self.chk_scalebar)
+        lay_scale.addWidget(QLabel(self.tr('表示位置:')))
+        self.cb_scalebar_pos = QComboBox()
+        for key, label in (
+            ('bottomleft', self.tr('左下')),
+            ('bottomright', self.tr('右下')),
+        ):
+            self.cb_scalebar_pos.addItem(label, key)
+        lay_scale.addWidget(self.cb_scalebar_pos)
+        lay_scale.addStretch()
+        self._update_scalebar_enabled()
+        root.addWidget(grp_scale)
+
+        # ---- Fill opacity override (spec item 2) ----------------------
+        grp_opacity = QGroupBox(self.tr('透過率'))
+        lay_opacity = QVBoxLayout(grp_opacity)
+        self.chk_opacity_override = QCheckBox(
+            self.tr('塗りの透過率を上書きする（QGISの設定を無視して一律適用）')
+        )
+        self.chk_opacity_override.toggled.connect(self._update_opacity_enabled)
+        lay_opacity.addWidget(self.chk_opacity_override)
+        row_opacity = QHBoxLayout()
+        row_opacity.addWidget(QLabel(self.tr('不透明度:')))
+        self.sl_opacity = QSlider(Qt.Orientation.Horizontal)
+        self.sl_opacity.setRange(0, 100)
+        self.sl_opacity.setValue(40)
+        row_opacity.addWidget(self.sl_opacity, 1)
+        self.lb_opacity = QLabel('40%')
+        self.lb_opacity.setMinimumWidth(40)
+        self.sl_opacity.valueChanged.connect(
+            lambda value: self.lb_opacity.setText('{0}%'.format(value))
+        )
+        row_opacity.addWidget(self.lb_opacity)
+        lay_opacity.addLayout(row_opacity)
+        lay_opacity.addWidget(QLabel(self.tr(
+            'ポリゴンの塗りとマーカーの塗りに適用されます。枠線の色・透過率は変更しません。'
+        )))
+        self._update_opacity_enabled()
+        root.addWidget(grp_opacity)
+
         grp_popup = QGroupBox(self.tr('ポップアップ・ホバー動作・帰属表示'))
         lay_popup = QVBoxLayout(grp_popup)
         self.rb_popup_click = QRadioButton(self.tr('クリック時にポップアップを表示（既定、ホバー時はハイライトのみ）'))
@@ -153,6 +223,62 @@ class DisplayTab(QWidget):
 
         root.addWidget(grp_popup)
 
+        # ---- Popup contents (spec item 7-6/7-7) -----------------------
+        grp_popup_content = QGroupBox(self.tr('ポップアップの内容'))
+        lay_popup_content = QVBoxLayout(grp_popup_content)
+        self.chk_popup_show_empty = QCheckBox(
+            self.tr('値が空の項目も表示する（既定：空の項目は表示しない）')
+        )
+        lay_popup_content.addWidget(self.chk_popup_show_empty)
+        self.chk_popup_linkify = QCheckBox(
+            self.tr('http で始まる値をリンクにする（画像URLは画像として表示）')
+        )
+        self.chk_popup_linkify.setChecked(True)
+        lay_popup_content.addWidget(self.chk_popup_linkify)
+        lay_popup_content.addWidget(QLabel(self.tr(
+            '表示する項目と並び順は「データ設定」タブのレイヤーごとの「設定…」で指定します。'
+            '項目名はQGISのフィールド別名（エイリアス）があればそちらを表示します。'
+        )))
+        root.addWidget(grp_popup_content)
+
+        # ---- External map links (spec item 11) ------------------------
+        grp_links = QGroupBox(self.tr('地図リンク'))
+        lay_links = QVBoxLayout(grp_links)
+        self.chk_links = QCheckBox(self.tr('ポップアップに地図リンクを表示する'))
+        self.chk_links.setChecked(True)
+        self.chk_links.toggled.connect(self._update_links_enabled)
+        lay_links.addWidget(self.chk_links)
+
+        # Defaults follow the spec's reasoning: the popup is narrow, so
+        # only the two most-used links are on out of the box.
+        self.chk_link_gmap = QCheckBox(self.tr('Googleマップで開く'))
+        self.chk_link_gmap.setChecked(True)
+        self.chk_link_sv = QCheckBox(self.tr('ストリートビューで見る'))
+        self.chk_link_sv.setChecked(True)
+        self.chk_link_dir = QCheckBox(self.tr('ここへの経路'))
+        self.chk_link_gsi = QCheckBox(self.tr('地理院地図で開く（空中写真・災害情報などの確認に便利）'))
+        for widget in (self.chk_link_gmap, self.chk_link_sv, self.chk_link_dir, self.chk_link_gsi):
+            widget.setStyleSheet('margin-left: 18px;')
+            lay_links.addWidget(widget)
+
+        row_name = QHBoxLayout()
+        self.chk_link_name = QCheckBox(self.tr('施設名でGoogle検索'))
+        self.chk_link_name.setStyleSheet('margin-left: 18px;')
+        self.chk_link_name.toggled.connect(self._update_links_enabled)
+        row_name.addWidget(self.chk_link_name)
+        row_name.addWidget(QLabel(self.tr('名称に使う項目:')))
+        # Populated by set_name_fields() from the layers actually added
+        # on the データ設定 tab - editable so a re-read of the tab isn't
+        # required to type a field name the picker hasn't seen yet.
+        self.cb_name_field = QComboBox()
+        self.cb_name_field.setEditable(True)
+        self.cb_name_field.setMinimumWidth(160)
+        row_name.addWidget(self.cb_name_field, 1)
+        lay_links.addLayout(row_name)
+
+        self._update_links_enabled()
+        root.addWidget(grp_links)
+
         # v0.3.0 tasks 3-1/3-2: no per-field configuration needed here -
         # both features reuse whichever fields are already visible in
         # each layer's ポップアップ項目 picker (Tab 1), so there's
@@ -167,6 +293,75 @@ class DisplayTab(QWidget):
         lay_search_list.addWidget(self.chk_feature_table)
         root.addWidget(grp_search_list)
 
+        # ---- Point thinning at wide zooms (spec item 6-B) -------------
+        grp_thin = QGroupBox(self.tr('広域表示時の間引き'))
+        lay_thin = QVBoxLayout(grp_thin)
+        self.chk_thinning = QCheckBox(
+            self.tr('広域表示のときポイントを間引いて表示する')
+        )
+        self.chk_thinning.setToolTip(self.tr(
+            '指定したズームより広域では、画面を格子に区切って1マスにつき1件だけ\n'
+            '描画し、密集した点が団子にならないようにします。\n'
+            '※間引くのは「描画」だけです。検索・一覧表・CSV出力には全件が\n'
+            '　含まれますし、拡大すれば全件表示に戻ります。'
+        ))
+        self.chk_thinning.toggled.connect(self._update_thinning_enabled)
+        lay_thin.addWidget(self.chk_thinning)
+
+        row_thin = QHBoxLayout()
+        row_thin.addWidget(QLabel(self.tr('このズーム未満で間引く:')))
+        self.sp_thin_zoom = QSpinBox()
+        self.sp_thin_zoom.setRange(0, 24)
+        self.sp_thin_zoom.setValue(14)
+        row_thin.addWidget(self.sp_thin_zoom)
+        row_thin.addWidget(QLabel(self.tr('格子の大きさ(px):')))
+        self.sp_thin_grid = QSpinBox()
+        self.sp_thin_grid.setRange(8, 200)
+        self.sp_thin_grid.setValue(32)
+        row_thin.addWidget(self.sp_thin_grid)
+        row_thin.addStretch()
+        lay_thin.addLayout(row_thin)
+        lay_thin.addWidget(QLabel(self.tr(
+            '間引いている間は「一部の地物のみ表示中」と画面に表示されます。'
+        )))
+        self._update_thinning_enabled()
+        root.addWidget(grp_thin)
+
+        # ---- Selection + data export (spec item 9) --------------------
+        grp_export = QGroupBox(self.tr('地物の選択・データ出力'))
+        lay_export = QVBoxLayout(grp_export)
+        self.chk_selection = QCheckBox(
+            self.tr('地物の選択とCSV/GeoJSON出力を使えるようにする')
+        )
+        self.chk_selection.setToolTip(self.tr(
+            'クリック／Ctrl+クリック／範囲（矩形）で地物を選択し、選択分または\n'
+            'レイヤー全体をCSV・GeoJSONでダウンロードできるようになります。\n'
+            'ボタンは一覧表パネルの下部に表示されます（一覧表の表示が必要です）。'
+        ))
+        self.chk_selection.toggled.connect(self._update_selection_enabled)
+        lay_export.addWidget(self.chk_selection)
+
+        self.chk_force_text_codes = QCheckBox(self.tr(
+            'ゼロ始まりの番号をExcelで欠けないよう ="0123" 形式で出力する'
+        ))
+        self.chk_force_text_codes.setToolTip(self.tr(
+            '施設コードなど先頭が0の値は、通常のCSVだとExcelで開いた時に\n'
+            '0が消えて「123」になります。この形式なら消えませんが、\n'
+            'Excel以外のツールに取り込む場合は ="..." が邪魔になることがあります。'
+        ))
+        self.chk_pretty_geojson = QCheckBox(
+            self.tr('GeoJSONを整形して出力する（読みやすいがファイルは大きくなる）')
+        )
+        for widget in (self.chk_force_text_codes, self.chk_pretty_geojson):
+            widget.setStyleSheet('margin-left: 18px;')
+            lay_export.addWidget(widget)
+        lay_export.addWidget(QLabel(self.tr(
+            'CSVはBOM付きUTF-8で出力するため、Excelで開いても文字化けしません。'
+            '緯度・経度の列が自動で追加されます（面・線は重心）。'
+        )))
+        self._update_selection_enabled()
+        root.addWidget(grp_export)
+
         root.addStretch()
 
     def _update_fixed_enabled(self):
@@ -176,6 +371,43 @@ class DisplayTab(QWidget):
 
     def _update_basemap_enabled(self):
         self.cb_basemap.setEnabled(self.chk_basemap.isChecked())
+
+    def _update_scalebar_enabled(self):
+        self.cb_scalebar_pos.setEnabled(self.chk_scalebar.isChecked())
+
+    def _update_opacity_enabled(self):
+        enabled = self.chk_opacity_override.isChecked()
+        self.sl_opacity.setEnabled(enabled)
+        self.lb_opacity.setEnabled(enabled)
+
+    def _update_thinning_enabled(self):
+        enabled = self.chk_thinning.isChecked()
+        self.sp_thin_zoom.setEnabled(enabled)
+        self.sp_thin_grid.setEnabled(enabled)
+
+    def _update_selection_enabled(self):
+        enabled = self.chk_selection.isChecked()
+        self.chk_force_text_codes.setEnabled(enabled)
+        self.chk_pretty_geojson.setEnabled(enabled)
+
+    def _update_links_enabled(self):
+        enabled = self.chk_links.isChecked()
+        for widget in (self.chk_link_gmap, self.chk_link_sv, self.chk_link_dir,
+                       self.chk_link_gsi, self.chk_link_name):
+            widget.setEnabled(enabled)
+        self.cb_name_field.setEnabled(enabled and self.chk_link_name.isChecked())
+
+    def set_name_fields(self, field_names):
+        """Refresh the "施設名でGoogle検索" field picker from the fields
+        actually available on the added layers (dialog.py calls this
+        when the データ設定 tab changes). The current selection is kept
+        when that field still exists, so switching tabs back and forth
+        doesn't silently retarget the link at a different column."""
+        current = self.cb_name_field.currentText()
+        self.cb_name_field.clear()
+        self.cb_name_field.addItems(sorted(set(field_names)))
+        if current:
+            self.cb_name_field.setEditText(current)
 
     def _update_manual_enabled(self):
         enabled = self.rb_manual.isChecked()
@@ -201,8 +433,27 @@ class DisplayTab(QWidget):
                 'center': [self.sp_lat.value(), self.sp_lng.value()],
                 'zoom': self.sp_init_zoom.value(),
             }
+        elif self.rb_canvas.isChecked():
+            # Resolved into actual WGS84 bounds by dialog.py, which is
+            # the only place with an `iface` to read the map canvas from.
+            initial_view = {'mode': 'currentCanvas'}
         else:
             initial_view = {'mode': 'autoFit'}
+
+        links = None
+        if self.chk_links.isChecked():
+            links = {
+                'googleMaps': self.chk_link_gmap.isChecked(),
+                'streetView': self.chk_link_sv.isChecked(),
+                'directions': self.chk_link_dir.isChecked(),
+                'gsi': self.chk_link_gsi.isChecked(),
+                'nameSearch': self.chk_link_name.isChecked(),
+                'nameField': self.cb_name_field.currentText().strip(),
+            }
+            if not any(links[key] for key in
+                       ('googleMaps', 'streetView', 'directions', 'gsi', 'nameSearch')):
+                # Parent checkbox on but every entry unchecked - same as off.
+                links = None
 
         display = {
             'sizeMode': size_mode,
@@ -221,5 +472,36 @@ class DisplayTab(QWidget):
             'attribution': self.le_attribution.text().strip(),
             'searchEnabled': self.chk_search.isChecked(),
             'featureTableEnabled': self.chk_feature_table.isChecked(),
+            'scaleBar': (
+                {'position': self.cb_scalebar_pos.currentData()}
+                if self.chk_scalebar.isChecked() else None
+            ),
+            # The export UI lives in the feature-table panel, so it can
+            # only be reached when that panel is published at all.
+            'selection': (
+                {
+                    'forceTextCodes': self.chk_force_text_codes.isChecked(),
+                    'prettyGeoJson': self.chk_pretty_geojson.isChecked(),
+                }
+                if (self.chk_selection.isChecked() and self.chk_feature_table.isChecked())
+                else None
+            ),
+            'thinning': (
+                {
+                    'belowZoom': self.sp_thin_zoom.value(),
+                    'gridPx': self.sp_thin_grid.value(),
+                }
+                if self.chk_thinning.isChecked() else None
+            ),
+            'popupShowEmpty': self.chk_popup_show_empty.isChecked(),
+            'popupLinkifyUrls': self.chk_popup_linkify.isChecked(),
+            'popupLinks': links,
+            # Not part of config.js: consumed at extraction time by
+            # core/style_extractor.py, so the published page carries the
+            # already-applied opacity rather than a knob to apply it.
+            'fillOpacityOverride': (
+                self.sl_opacity.value() / 100.0
+                if self.chk_opacity_override.isChecked() else None
+            ),
         }
         return display

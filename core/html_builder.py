@@ -16,11 +16,18 @@ import os
 JS_MODULE_ORDER = [
     'display-settings.js',
     'style-renderer.js',
+    'fill-pattern.js',
     'map-core.js',
     'layer-control.js',
     'label-layer.js',
     'search.js',
     'point-list.js',
+    # Needs FAG_FEATURES_BY_LAYER (layer-control.js) and reuses
+    # style-renderer.js's fagFeatureLatLng; point-list.js calls into it
+    # for the two-way row/map selection sync. Everything is bundled into
+    # one <script>, so function declarations hoist across module
+    # boundaries and this ordering only matters for top-level `var`s.
+    'selection.js',
     'main.js',
 ]
 
@@ -46,8 +53,41 @@ def _json_for_inline_script(value):
     A facility name/address/etc. containing the substring "</script>"
     would otherwise prematurely close the tag and corrupt the page -
     only relevant for single-file output, where the JSON is inlined
-    directly into the HTML rather than written to its own .js file."""
+    directly into the HTML rather than written to its own .js file.
+
+    The `<\\/` replacement keeps the payload valid JSON as well as valid
+    JavaScript: JSON explicitly allows `\\/` as an escape for a solidus,
+    so the same escaped text can be handed to JSON.parse unchanged
+    (which is what the <script type="application/json"> blocks below
+    rely on)."""
     return _compact_json(value).replace('</', '<\\/')
+
+
+def _json_data_block(element_id, value):
+    """A <script type="application/json"> block plus nothing else.
+
+    The browser does NOT hand this to the JavaScript parser - it's inert
+    text until something reads it - so for a large facility dataset the
+    page-load cost of getting the bytes in is close to zero, and the
+    later JSON.parse is substantially faster than having the JS parser
+    work through the same data as an object literal. Only single-file
+    output uses this; see build_output for why split output can't.
+    """
+    return (
+        '<script type="application/json" id="' + element_id + '">'
+        + _json_for_inline_script(value) + '</script>'
+    )
+
+
+def _parse_data_blocks(assignments):
+    """The one real <script> that turns the inert JSON blocks above back
+    into the globals the template modules expect. `assignments` is
+    [(js_variable_name, element_id), ...]."""
+    lines = [
+        'const {0} = JSON.parse(document.getElementById("{1}").textContent);'.format(name, el_id)
+        for name, el_id in assignments
+    ]
+    return '<script>\n' + '\n'.join(lines) + '\n</script>'
 
 
 def _compact_json(value):
@@ -120,10 +160,28 @@ def build_output(template_dir, config, layers, output_format, output_target):
         written.append(html_path)
 
     elif output_format == 'single':
-        config_script = '<script>const config = ' + _json_for_inline_script(config) + ';</script>'
+        # Inert JSON blocks + one JSON.parse pass, rather than embedding
+        # the data as `const layersData = {...}` object literals. On a
+        # large export the object-literal form makes the JavaScript
+        # parser walk every byte of the dataset during page load, which
+        # is the single biggest cost before anything is drawn.
+        #
+        # Split output deliberately keeps the object-literal form: its
+        # config.js/layers.js are loaded with <script src>, and the same
+        # trick there would mean either a fetch() (blocked by CORS on
+        # file://, which is exactly how these exports get opened from a
+        # shared folder) or double-encoding the JSON into a JS string
+        # literal, which inflates the file by escaping every quote -
+        # working against the size reduction that matters more there.
+        config_script = _json_data_block('fag-config-data', config)
         layers_script = (
-            '<script>const layersData = ' + _json_for_inline_script(layers_data) +
-            ';\nconst layersStyleData = ' + _json_for_inline_script(layers_style) + ';</script>'
+            _json_data_block('fag-layers-data', layers_data) + '\n'
+            + _json_data_block('fag-layers-style-data', layers_style) + '\n'
+            + _parse_data_blocks([
+                ('config', 'fag-config-data'),
+                ('layersData', 'fag-layers-data'),
+                ('layersStyleData', 'fag-layers-style-data'),
+            ])
         )
 
         html = html.replace('<!-- INJECT_CONFIG -->', config_script)

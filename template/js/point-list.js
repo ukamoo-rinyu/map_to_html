@@ -253,8 +253,16 @@ function initFeatureTable(config, map) {
 
   function buildRow(entry) {
     var props = entry.feature.properties || {};
+    var fid = props._fid;
     var row = document.createElement('div');
     row.className = 'fag-table-row';
+    // The map->list half of the spec's two-way selection sync (item 9):
+    // rows are recycled by the virtual scroller, so the selected state
+    // is re-read from FAG_SELECTION on every build rather than being
+    // stored on the element.
+    if (typeof fagIsSelected === 'function' && fagIsSelected(state.layerId, fid)) {
+      row.className += ' fag-row-selected';
+    }
     row.style.height = FAG_TABLE_ROW_HEIGHT + 'px';
     var fragment = document.createDocumentFragment();
     state.columns.forEach(function (col, i) {
@@ -264,10 +272,23 @@ function initFeatureTable(config, map) {
       ));
     });
     row.appendChild(fragment);
-    row.addEventListener('click', function () {
-      focusFeature(map, state.layerId, entry);
+    row.addEventListener('click', function (event) {
+      // The list->map half: Ctrl/Cmd/Shift-click selects without moving
+      // the map, so a multi-row selection can be built up by scrolling
+      // the list. A plain click keeps its original "zoom to it and open
+      // its popup" behavior, and selects it too.
+      var additive = event.ctrlKey || event.metaKey || event.shiftKey;
+      if (typeof window.fagToggleSelectionFromTable === 'function' && fid !== undefined) {
+        window.fagToggleSelectionFromTable(state.layerId, fid, additive);
+      }
+      if (!additive) focusFeature(map, state.layerId, entry);
     });
     return row;
+  }
+
+  // Repaint row highlighting when the selection changes on the map.
+  if (typeof fagOnSelectionChange === 'function') {
+    fagOnSelectionChange(scheduleRowRender);
   }
 
   function buildCell(text, width) {

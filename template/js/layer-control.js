@@ -54,8 +54,142 @@ function focusFeature(map, layerId, entry) {
   if (layer.openPopup) layer.openPopup();
 }
 
-function initLayerControl(map, layersConfig, layersData, layersStyleData, popupTrigger) {
-  if (!layersConfig || !layersConfig.length) return;
+/* Per-layer popup settings, assembled once from the layer's own config
+   entry plus the global 表示設定 options, then handed to every feature's
+   bindPopupIfAny. Kept out of the per-feature path so the alias table
+   and link flags are looked up once per layer, not once per feature. */
+function buildPopupContext(layerConfig, display) {
+  return {
+    aliases: layerConfig.fieldAliases || {},
+    showEmpty: display.popupShowEmpty === true,
+    linkifyUrls: display.popupLinkifyUrls !== false,
+    // Absent (parent checkbox off in the plugin) means no link markup
+    // is generated at all - see buildPopupLinksHtml.
+    links: display.popupLinks || null,
+  };
+}
+
+/* Drives #loading-overlay. Building a large layer blocks the main
+   thread, so the counter only actually paints if we hand control back
+   to the browser between layers - hence the setTimeout chain in
+   initLayerControl rather than a plain forEach. */
+function fagSetLoadingProgress(done, total) {
+  var el = document.getElementById('loading-text');
+  if (el) el.textContent = 'Loading… ' + done + '/' + total + ' layers';
+}
+
+function fagRemoveLoadingOverlay() {
+  var el = document.getElementById('loading-overlay');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+/* `onComplete` runs once every layer is on the map and the panel is
+   rendered. main.js does the rest of its wiring there rather than on
+   the next line, because the work below is now spread across several
+   event-loop turns - FAG_FEATURES_BY_LAYER (search, feature table) and
+   FAG_LABEL_REGISTRY (label layer) aren't fully populated until it
+   fires. */
+/* Every built layer, with the two independent things that decide
+   whether it's currently on the map: the user's checkbox, and the
+   layer's own zoom range (spec item 6-A). Keeping both in one place is
+   what stops them fighting - a zoom change must not resurrect a layer
+   the user unchecked, and re-checking a layer must not force it to
+   appear outside its zoom range. */
+var FAG_LAYER_VISIBILITY = [];
+
+/* Marker layers eligible for grid thinning (spec item 6-B):
+   {group, markers: [{marker, lat, lng}]}. `group` is the L.geoJSON
+   FeatureGroup; thinning adds/removes markers from it, so the features
+   themselves are untouched - search, the feature table and CSV export
+   all still see every one of them, which the spec calls out as the
+   thing not to get wrong ("地物そのものを間引いて出力してしまうこと"). */
+var FAG_THINNING_LAYERS = [];
+
+function fagLayerAllowedAtZoom(layerConfig, zoom) {
+  if (layerConfig.minZoom !== undefined && layerConfig.minZoom !== null &&
+      zoom < layerConfig.minZoom) return false;
+  if (layerConfig.maxZoom !== undefined && layerConfig.maxZoom !== null &&
+      zoom > layerConfig.maxZoom) return false;
+  return true;
+}
+
+function fagApplyLayerVisibility(map) {
+  var zoom = map.getZoom();
+  var changed = false;
+  FAG_LAYER_VISIBILITY.forEach(function (record) {
+    var shouldShow = record.checked && fagLayerAllowedAtZoom(record.config, zoom);
+    var isShown = map.hasLayer(record.layerGroup);
+    if (shouldShow && !isShown) {
+      record.layerGroup.addTo(map);
+      changed = true;
+    } else if (!shouldShow && isShown) {
+      map.removeLayer(record.layerGroup);
+      changed = true;
+    }
+  });
+  if (changed) {
+    // Re-assert configured click priority: a layer that has just been
+    // re-added sits at the end of the canvas draw order regardless of
+    // where it belongs, so the whole stack is replayed in config order
+    // (same pass, and same reasoning, as the initial load).
+    FAG_LAYER_VISIBILITY.forEach(function (record) {
+      if (map.hasLayer(record.layerGroup)) bringLayerToFront(record.layerGroup);
+    });
+  }
+}
+
+/* Grid thinning: below `belowZoom`, keep only the first marker falling
+   in each `gridPx`-sized cell. The grid is measured in degrees at the
+   current zoom rather than in screen space, so panning doesn't reshuffle
+   which markers are showing - that would both flicker and cost a full
+   pass on every drag. */
+function fagApplyThinning(map, settings) {
+  if (!settings || !FAG_THINNING_LAYERS.length) return;
+  var thinning = map.getZoom() < settings.belowZoom;
+  var gridPx = settings.gridPx || 32;
+  var hiddenCount = 0;
+
+  var cellLat = 0;
+  var cellLng = 0;
+  if (thinning) {
+    var origin = map.getCenter();
+    var point = map.latLngToContainerPoint(origin);
+    var corner = map.containerPointToLatLng(L.point(point.x + gridPx, point.y + gridPx));
+    cellLat = Math.abs(corner.lat - origin.lat) || 1e-9;
+    cellLng = Math.abs(corner.lng - origin.lng) || 1e-9;
+  }
+
+  FAG_THINNING_LAYERS.forEach(function (record) {
+    var seen = {};
+    record.markers.forEach(function (item) {
+      var keep = true;
+      if (thinning) {
+        var key = Math.floor(item.lat / cellLat) + ',' + Math.floor(item.lng / cellLng);
+        keep = !seen[key];
+        seen[key] = true;
+      }
+      var present = record.group.hasLayer(item.marker);
+      if (keep && !present) record.group.addLayer(item.marker);
+      else if (!keep && present) record.group.removeLayer(item.marker);
+      if (!keep) hiddenCount += 1;
+    });
+  });
+
+  // Never thin silently - a reader who isn't told will read the gaps as
+  // missing data rather than as a display choice (spec: これは必須).
+  var notice = document.getElementById('thinning-notice');
+  if (notice) notice.classList.toggle('fag-hidden', hiddenCount === 0);
+}
+
+function initLayerControl(map, layersConfig, layersData, layersStyleData, display, onComplete) {
+  onComplete = onComplete || function () {};
+  if (!layersConfig || !layersConfig.length) {
+    fagRemoveLoadingOverlay();
+    onComplete();
+    return;
+  }
+  display = display || {};
+  var popupTrigger = display.popupTrigger;
 
   var panel = document.getElementById('layer-panel');
   var listEl = document.getElementById('layer-panel-list');
@@ -94,7 +228,8 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
   // items/groups keep their original relative position instead of
   // being split into "all groups, then all items".
   var tree = { children: {}, order: [] };
-  layersConfig.forEach(function (layerConfig) {
+
+  function buildOne(layerConfig) {
     var geojson = layersData[layerConfig.id];
     var styleData = layersStyleData[layerConfig.id] || {};
     // showPopup === false (データ設定 tab's per-layer "ポップアップ表示"
@@ -108,8 +243,23 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
     // removes it from hit-testing entirely, so clicks/hover pass
     // through to whatever's actually underneath.
     var layerInteractive = layerConfig.showPopup !== false;
-    var layerGroup = buildStyledLayer(geojson, styleData, popupTrigger, layerInteractive, layerConfig.id);
-    if (layerConfig.defaultVisible) layerGroup.addTo(map);
+    var layerGroup = buildStyledLayer(
+      geojson, styleData, popupTrigger, layerInteractive, layerConfig.id,
+      buildPopupContext(layerConfig, display),
+      // A hatched polygon layer needs the SVG renderer (Canvas can't do
+      // <pattern>); everything else keeps the fast shared Canvas one.
+      fagStyleNeedsPattern(styleData) ? fagPatternRenderer(map) : null,
+      map
+    );
+    FAG_LAYER_VISIBILITY.push({
+      config: layerConfig, layerGroup: layerGroup, checked: !!layerConfig.defaultVisible,
+    });
+    // Both conditions have to hold to be on the map at load, not just
+    // the checkbox: a layer whose QGIS scale-based visibility says
+    // "not at this zoom" must start hidden even though it's checked.
+    if (layerConfig.defaultVisible && fagLayerAllowedAtZoom(layerConfig, map.getZoom())) {
+      layerGroup.addTo(map);
+    }
     // v0.3.0 spec feedback: even with the population/table order fixed
     // so layersConfig is genuinely back-to-front (data_tab.py task
     // 2-4), a polygon/line layer earlier in that order could STILL win
@@ -139,22 +289,68 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, popupT
     });
     node.order.push({
       type: 'item',
-      item: { config: layerConfig, layerGroup: layerGroup, style: styleData.defaultStyle || {} },
+      item: {
+        config: layerConfig,
+        layerGroup: layerGroup,
+        style: styleData.defaultStyle || {},
+        categoryLegend: styleData.categoryLegend || null,
+      },
     });
-  });
-
-  // Map-unit stroke widths (real-world meters, see style-renderer.js's
-  // FAG_MAPUNIT_PATHS): resolve them to px for the initial zoom now
-  // that every layer is built, then keep them tracking the zoom level
-  // so zooming out shrinks them exactly like QGIS's マップ単位 widths
-  // (instead of a constant screen thickness swallowing the whole map).
-  if (FAG_MAPUNIT_PATHS.length) {
-    fagUpdateMapUnitWeights(map);
-    map.on('zoomend', function () { fagUpdateMapUnitWeights(map); });
   }
 
-  renderLayerTree(tree, listEl, map);
-  refreshGroupCheckboxStates();
+  function finish() {
+    // Map-unit stroke widths (real-world meters, see style-renderer.js's
+    // FAG_MAPUNIT_PATHS): resolve them to px for the initial zoom now
+    // that every layer is built, then keep them tracking the zoom level
+    // so zooming out shrinks them exactly like QGIS's マップ単位 widths
+    // (instead of a constant screen thickness swallowing the whole map).
+    if (FAG_MAPUNIT_PATHS.length) {
+      fagUpdateMapUnitWeights(map);
+      map.on('zoomend', function () { fagUpdateMapUnitWeights(map); });
+    }
+
+    renderLayerTree(tree, listEl, map);
+    refreshGroupCheckboxStates();
+
+    // Zoom-driven layer visibility (item 6-A) and point thinning
+    // (item 6-B). Both are re-evaluated on zoomend only: the thinning
+    // grid is measured in degrees at the current zoom, so panning
+    // can't change the outcome and running on moveend would be pure
+    // cost. Wired only when something actually uses them.
+    var needsZoomVisibility = layersConfig.some(function (layerConfig) {
+      return (layerConfig.minZoom !== undefined && layerConfig.minZoom !== null) ||
+        (layerConfig.maxZoom !== undefined && layerConfig.maxZoom !== null);
+    });
+    var thinning = display.thinning || null;
+    if (needsZoomVisibility || thinning) {
+      map.on('zoomend', function () {
+        if (needsZoomVisibility) fagApplyLayerVisibility(map);
+        if (thinning) fagApplyThinning(map, thinning);
+      });
+      if (thinning) fagApplyThinning(map, thinning);
+    }
+
+    fagRemoveLoadingOverlay();
+    onComplete();
+  }
+
+  // One layer per event-loop turn: the counter in #loading-overlay only
+  // means anything if the browser gets a chance to paint between
+  // layers, and on a large export each layer is a long enough block of
+  // work that the difference is very visible. The 0ms timeout is not a
+  // delay - it's the yield.
+  var index = 0;
+  fagSetLoadingProgress(0, layersConfig.length);
+  (function step() {
+    if (index >= layersConfig.length) {
+      finish();
+      return;
+    }
+    buildOne(layersConfig[index]);
+    index += 1;
+    fagSetLoadingProgress(index, layersConfig.length);
+    setTimeout(step, 0);
+  })();
 }
 
 /* Recursively brings every Path child (circleMarker/polygon/polyline -
@@ -247,14 +443,35 @@ function renderLayerTree(node, containerEl, map) {
       var checkboxId = 'layer-toggle-' + layerConfig.id;
       var li = document.createElement('li');
       li.className = 'fag-layer-item';
-      li.innerHTML = '<input type="checkbox" id="' + checkboxId + '"' +
+      // Checkbox + swatch + name share one flex row; a categorized
+      // layer's category list becomes a sibling BELOW that row, so a
+      // long layer name wrapping can't push the checkbox out of line.
+      var itemRow = document.createElement('div');
+      itemRow.className = 'fag-layer-item-row';
+      itemRow.innerHTML = '<input type="checkbox" id="' + checkboxId + '"' +
         (layerConfig.defaultVisible ? ' checked' : '') + '>' +
         buildLegendSwatchHtml(item.style) +
         '<label for="' + checkboxId + '"></label>';
-      li.querySelector('label').textContent = layerConfig.label;
-      var checkbox = li.querySelector('input');
+      itemRow.querySelector('label').textContent = layerConfig.label;
+      li.appendChild(itemRow);
+      // A categorized layer lists each of its categories underneath,
+      // so the panel matches what QGIS's own legend shows for it.
+      var categoryList = buildCategoryLegendHtml(item.categoryLegend);
+      if (categoryList) li.appendChild(categoryList);
+      var checkbox = itemRow.querySelector('input');
       checkbox.addEventListener('change', function (e) {
-        if (e.target.checked) {
+        // Record the user's intent, then let fagApplyLayerVisibility
+        // reconcile it with the layer's zoom range - checking a layer
+        // that's outside its zoom range must not force it onto the map
+        // (spec item 6-A).
+        var record = null;
+        FAG_LAYER_VISIBILITY.forEach(function (candidate) {
+          if (candidate.layerGroup === layerGroup) record = candidate;
+        });
+        if (record) {
+          record.checked = e.target.checked;
+          fagApplyLayerVisibility(map);
+        } else if (e.target.checked) {
           layerGroup.addTo(map);
         } else {
           map.removeLayer(layerGroup);
@@ -297,7 +514,9 @@ function buildLegendSwatchHtml(style) {
     var shape = m.shape || 'circle';
     var bg = hexToRgba(m.color, m.opacity);
     if (shape === 'circle' || shape === 'square') {
-      var strokeColor = m.strokeColor || m.color;
+      // Same fill/stroke opacity split the map itself uses, so a
+      // see-through marker reads as see-through in the legend too.
+      var strokeColor = hexToRgba(m.strokeColor || m.color, m.strokeOpacity);
       var strokeWidth = (m.strokeWidth === undefined || m.strokeWidth === null) ? 1 : m.strokeWidth;
       var shapeClass = shape === 'circle' ? 'fag-legend-circle' : 'fag-legend-box';
       return '<span class="fag-legend-swatch ' + shapeClass + '" style="background:' + bg +
@@ -311,16 +530,58 @@ function buildLegendSwatchHtml(style) {
     return '<span class="fag-legend-swatch fag-legend-' + shape + '" style="background:' + bg + ';"></span>';
   }
   if (style.line) {
-    return '<span class="fag-legend-swatch fag-legend-line" style="background:' + style.line.color + ';"></span>';
+    return '<span class="fag-legend-swatch fag-legend-line" style="background:' +
+      hexToRgba(style.line.color, style.line.opacity) + ';"></span>';
   }
   if (style.fill) {
-    return '<span class="fag-legend-swatch fag-legend-box" style="background:' + hexToRgba(style.fill.fillColor, style.fill.fillOpacity) +
-      ';border:' + style.fill.strokeWidth + 'px solid ' + style.fill.strokeColor + ';"></span>';
+    var f = style.fill;
+    // A hatched fill gets an inline-SVG swatch carrying its own copy of
+    // the pattern, so the legend and the map agree (spec item 10:
+    // "凡例のスウォッチにも同じパターンを描かないと地図と食い違う").
+    var patternSwatch = f.fillPattern ? fagPatternSwatchHtml(f) : null;
+    if (patternSwatch) return patternSwatch;
+    var fillBg = (f.hasFill === false) ? 'transparent' : hexToRgba(f.fillColor, f.fillOpacity);
+    var border = (f.hasStroke === false || !f.strokeWidth)
+      ? '0'
+      : Math.min(f.strokeWidth, 3) + 'px solid ' + hexToRgba(f.strokeColor, f.strokeOpacity);
+    return '<span class="fag-legend-swatch fag-legend-box" style="background:' + fillBg +
+      ';border:' + border + ';"></span>';
   }
   if (style.tile) {
     return '<span class="fag-legend-swatch fag-legend-tile"></span>';
   }
   return '';
+}
+
+/* Per-category legend rows for a layer using a QGIS categorized
+   renderer (spec item 3: "凡例もカテゴリ単位で出力する"). Without
+   this the panel showed one swatch per LAYER - for a layer whose whole
+   point is that it's colored by 施設種別 or 活用方針, that single
+   swatch is one arbitrary category's color and tells the reader
+   nothing. `label` is QGIS's own legend text for the category, which
+   is often not the raw value ("1" -> "小学校"). Uses the same
+   buildLegendSwatchHtml as the layer rows, so a categorized polygon's
+   entries show the same transparency/outline treatment as everything
+   else. */
+function buildCategoryLegendHtml(categoryLegend) {
+  if (!categoryLegend || !categoryLegend.entries || !categoryLegend.entries.length) return null;
+  var ul = document.createElement('ul');
+  ul.className = 'fag-legend-categories';
+  categoryLegend.entries.forEach(function (entry) {
+    var li = document.createElement('li');
+    li.innerHTML = buildLegendSwatchHtml(entry.style) + '<span></span>';
+    // A category can legitimately have a blank legend label in QGIS -
+    // most often the "all other values" catch-all, which QGIS leaves
+    // unnamed. Rendering that as a bare swatch with no text next to it
+    // reads as a bug, so fall back to the raw classification value and
+    // finally to an explicit placeholder.
+    var text = entry.label || entry.value || '(other)';
+    // textContent, not innerHTML - a category label is raw QGIS data and
+    // can contain <, & or quotes.
+    li.querySelector('span:last-child').textContent = text;
+    ul.appendChild(li);
+  });
+  return ul;
 }
 
 /* For a categorized-renderer layer (spec 4.2.2/4.2.3), pick the
@@ -402,7 +663,8 @@ function spreadOverlappingPointsAcrossLayers(layersConfig, layersData, layersSty
   });
 }
 
-function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId) {
+function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId, popupCtx,
+                          patternRenderer, map) {
   var style = (styleData && styleData.defaultStyle) || {};
   var byCategory = (styleData && styleData.byCategory) || null;
   // データ設定 tab's per-layer "ポップアップ表示" checkbox, unchecked.
@@ -434,7 +696,8 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
   if (style.marker) {
     // Duplicate-coordinate spreading already happened once, across all
     // layers, in initLayerControl - see spreadOverlappingPointsAcrossLayers.
-    return L.geoJSON(geojson, {
+    var thinnable = [];
+    var markerLayer = L.geoJSON(geojson, {
       pointToLayer: function (feature, latlng) {
         var props = feature.properties || {};
         var resolved = resolveCategoryStyle(byCategory, props);
@@ -447,12 +710,17 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
         hit.fagLabelMultiDirection = !!feature.__fagSpread;
         registerFeature(layerId, feature, hit);
         if (interactive) {
-          bindPopupIfAny(hit, props, popupTrigger);
+          bindPopupIfAny(hit, props, popupTrigger, popupCtx);
           if (popupTrigger !== 'none') bindHoverHighlight(hit, visual);
         }
+        thinnable.push({ marker: marker, lat: latlng.lat, lng: latlng.lng });
         return marker;
       },
     });
+    if (thinnable.length) {
+      FAG_THINNING_LAYERS.push({ group: markerLayer, markers: thinnable });
+    }
+    return markerLayer;
   }
 
   if (style.line) {
@@ -464,7 +732,13 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
         return {
           color: lineStyle.color,
           weight: lineStyle.width,
-          dashArray: lineStyle.dashed ? '6,4' : null,
+          // Independent of the color itself: QGIS multiplies the line
+          // color's own alpha by the symbol's opacity and the layer's
+          // opacity, and style_extractor.py exports that product.
+          opacity: lineStyle.opacity === undefined ? 1 : lineStyle.opacity,
+          // Already a px pattern derived from the Qt pen style (or a
+          // custom dash vector) - see _dash_array_for_pen.
+          dashArray: lineStyle.dashArray || null,
           interactive: interactive,
         };
       },
@@ -482,7 +756,7 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
           FAG_MAPUNIT_PATHS.push({ path: layer, meters: lineStyle.widthMeters });
         }
         if (!interactive) return;
-        bindPopupIfAny(layer, feature.properties, popupTrigger);
+        bindPopupIfAny(layer, feature.properties, popupTrigger, popupCtx);
         if (popupTrigger !== 'none') bindHoverHighlight(layer);
       },
     });
@@ -505,10 +779,22 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
           // opening the boundary layer's popup instead). `interactive`
           // being false removes it from hit-testing entirely (including
           // its stroke) - the stronger, opt-in version of this same fix.
-          fill: fillStyle.fillOpacity > 0,
+          // hasFill is QGIS's explicit "塗りつぶしなし" (Qt.NoBrush or an
+          // outline-only symbol); the fillOpacity check additionally
+          // catches a fill that's merely fully transparent.
+          fill: fillStyle.hasFill !== false && fillStyle.fillOpacity > 0,
           color: fillStyle.strokeColor,
           weight: fillStyle.strokeWidth,
+          // Fill and outline transparency are separate settings in QGIS
+          // and stay separate here - a 20%-opacity fill under a solid
+          // border is a very common boundary/zone style.
+          opacity: fillStyle.strokeOpacity === undefined ? 1 : fillStyle.strokeOpacity,
+          stroke: fillStyle.hasStroke !== false && fillStyle.strokeWidth > 0,
+          dashArray: fillStyle.dashArray || null,
           interactive: interactive,
+          // Only set for a hatched layer; null leaves Leaflet's default
+          // (the map-wide Canvas renderer) in place.
+          renderer: patternRenderer || undefined,
         };
       },
       onEachFeature: function (feature, layer) {
@@ -516,11 +802,14 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
         // Same map-unit scheme as the line branch, for polygon outlines.
         var resolved = resolveCategoryStyle(byCategory, (feature && feature.properties) || {});
         var fillStyle = (resolved && resolved.fill) || style.fill;
+        if (patternRenderer && fillStyle.fillPattern) {
+          fagApplyPatternToPath(layer, fagEnsurePattern(map, fillStyle));
+        }
         if (fillStyle.strokeWidthMeters) {
           FAG_MAPUNIT_PATHS.push({ path: layer, meters: fillStyle.strokeWidthMeters });
         }
         if (!interactive) return;
-        bindPopupIfAny(layer, feature.properties, popupTrigger);
+        bindPopupIfAny(layer, feature.properties, popupTrigger, popupCtx);
         if (popupTrigger !== 'none') bindHoverHighlight(layer);
       },
     });
@@ -537,8 +826,8 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
    the popup on mouseover/closes on mouseout; the default click-to-open
    binding is left in place either way, so hovering never disables
    clicking, it just adds an extra way in. */
-function bindPopupIfAny(layer, props, popupTrigger) {
-  var html = buildGenericPopupHtml(props);
+function bindPopupIfAny(layer, props, popupTrigger, popupCtx) {
+  var html = buildGenericPopupHtml(props, popupCtx, fagFeatureLatLng(layer));
   if (!html) return;
   layer.bindPopup(html);
   if (popupTrigger === 'hover') {

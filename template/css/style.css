@@ -186,13 +186,37 @@ html, body {
    the group-wrapper <li> below and - being an ID selector - would win
    on specificity over ".fag-layer-group { display: block }", forcing
    the group's title+sublist into a flex row instead of stacking them). */
+/* A block, with the checkbox/swatch/name kept together in their own
+   flex row - a categorized layer appends its category sublist as a
+   second child, which then sits below that row. Making the <li> itself
+   the flex container (with wrapping to fit the sublist) instead let a
+   long layer name wrap onto its own flex line, leaving the checkbox and
+   swatch stranded on the line above it. */
 .fag-layer-item {
+  display: block;
+  padding: 3px 0;
+}
+.fag-layer-item-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 0;
 }
 .fag-layer-item label { cursor: pointer; }
+
+/* ---- Per-category legend rows (spec item 3) ---- */
+.fag-legend-categories {
+  list-style: none;
+  margin: 2px 0 2px 22px;
+  padding: 0;
+}
+.fag-legend-categories li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 0;
+  font-size: 12px;
+  color: var(--muted-color);
+}
 
 /* ---- Group nodes (spec feedback: mirror QGIS's group hierarchy) ---- */
 .fag-layer-group { display: block; padding: 3px 0; }
@@ -248,11 +272,72 @@ html, body {
 }
 
 /* ---- Popup content ---- */
-.fag-popup { font-size: 13px; max-width: 260px; max-height: 260px; overflow-y: auto; }
+/* Stacked (label above value), NOT a 2-column table: with a 2-column
+   layout a long column name either squeezed the value column down to a
+   few characters or forced the popup absurdly wide (spec item 7-1).
+   Stacked, the field name's length stops mattering entirely. */
+.fag-popup {
+  font-size: 13px;
+  max-width: 320px;
+  max-height: 400px;
+  overflow-y: auto;
+  /* Long unbroken tokens (URLs, codes, romanized addresses) would
+     otherwise push the popup past max-width instead of wrapping. */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
 .fag-popup-title { font-weight: 700; margin-bottom: 6px; }
-.fag-popup-row { display: flex; gap: 6px; padding: 2px 0; }
-.fag-popup-label { color: var(--muted-color); flex: 0 0 auto; }
-.fag-popup-value { color: var(--text-color); }
+.fag-popup-row { display: block; padding: 3px 0; }
+.fag-popup-row + .fag-popup-row { border-top: 1px solid var(--border-color, #e5e5e5); }
+.fag-popup-label {
+  display: block;
+  color: var(--muted-color);
+  font-size: 11px;
+  line-height: 1.3;
+}
+.fag-popup-value {
+  display: block;
+  color: var(--text-color);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.fag-popup-value img {
+  max-width: 100%;
+  height: auto;
+  margin-top: 2px;
+  border-radius: 3px;
+}
+
+/* ---- Map/Street View links at the foot of a popup (spec item 11) ----
+   Icons in one row rather than four stacked text links: the popup is
+   narrow, and four full-width labels dominated the actual attribute
+   content. `title` carries the explanation on hover. */
+.fag-popup-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-color, #e5e5e5);
+}
+.fag-popup-links a {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-size: 15px;
+  line-height: 1.1;
+  text-decoration: none;
+  color: var(--text-color);
+}
+.fag-popup-links a:hover { opacity: 0.7; }
+/* Hover doesn't exist on a phone, so the icon keeps a small caption
+   underneath instead of relying on `title` alone. */
+.fag-popup-links .fag-popup-link-label {
+  font-size: 9px;
+  color: var(--muted-color);
+  white-space: nowrap;
+}
 
 /* ---- Search panel (v0.3.0 task 3-1) - lives inside #app-header next
    to the title (search.js does no positioning of its own; this is
@@ -358,6 +443,126 @@ html, body {
   max-height: calc(100vh - 76px);
 }
 #feature-table-panel.fag-collapsed { max-height: none; }
+
+/* ---- Selection + export bar (spec item 9) ----
+   First child of the panel, so column-reverse pins it to the very
+   bottom - it stays reachable while the table itself is collapsed,
+   which is the state the panel starts in. ---- */
+#selection-bar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--border-color);
+}
+#selection-bar-row,
+#selection-bar-row-2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+#selection-bar button {
+  font-family: inherit;
+  font-size: 11px;
+  padding: 3px 7px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--panel-bg);
+  color: var(--text-color);
+  cursor: pointer;
+}
+#selection-bar button:hover { background: var(--hover-bg, #f0f0f0); }
+#selection-rect-btn.fag-active {
+  background: #ffd400;
+  border-color: #7a5c00;
+  color: #3a2c00;
+  font-weight: 700;
+}
+#selection-count {
+  font-size: 11px;
+  color: var(--muted-color);
+  margin-left: auto;
+}
+.fag-table-row.fag-row-selected {
+  background: rgba(255, 212, 0, 0.28);
+}
+
+/* ---- Thinning notice (spec item 6-B) ----
+   Top-center, above the map but clear of the layer panel's top-right
+   corner; pointer-events:none so it can never intercept a map click. */
+#thinning-notice {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 999;
+  pointer-events: none;
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: rgba(59, 70, 86, 0.88);
+  color: #fff;
+  font-size: 11px;
+  white-space: nowrap;
+  max-width: calc(100vw - 40px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Loading overlay (spec item 8, "真っ白な画面が一番つらい") ----
+   Sits above the map but below the panels' z-index 1000 stacking so it
+   never traps a click once removed. Removed outright (not just hidden)
+   by layer-control.js when the last layer is built. ---- */
+#loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel-bg, #fff);
+}
+#loading-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted-color);
+  font-size: 13px;
+}
+#loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border-color, #ddd);
+  border-top-color: var(--header-bg, #3b4656);
+  border-radius: 50%;
+  animation: fag-spin 0.8s linear infinite;
+}
+@keyframes fag-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  #loading-spinner { animation: none; }
+}
+
+/* The feature table owns the bottom-left corner (left/bottom 10px,
+   360px wide), which is also where a "左下" scale bar lands - they
+   overlapped. Shift Leaflet's bottom-left control corner clear of the
+   panel's right edge instead of moving it above the panel: the table
+   grows UPWARD as it expands, so anything stacked above it gets
+   covered as soon as the user opens it, whereas the panel's width is
+   fixed. Scoped to .fag-has-feature-table (set by display-settings.js)
+   so a map without the table keeps the scale bar in the true corner. */
+.fag-has-feature-table .leaflet-bottom.leaflet-left {
+  margin-left: 372px;
+}
+@media (max-width: 520px) {
+  /* Too narrow to sit beside the panel - go above it instead. The
+     collapsed header is ~34px tall, plus the panel's own 10px offset. */
+  .fag-has-feature-table .leaflet-bottom.leaflet-left {
+    margin-left: 0;
+    margin-bottom: 44px;
+  }
+}
 #feature-table-header {
   display: flex;
   align-items: center;

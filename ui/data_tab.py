@@ -36,9 +36,10 @@ COL_GROUP = 0
 COL_NAME = 1
 COL_TYPE = 2
 COL_OPACITY = 3
-COL_FIELDS = 4
-COL_POPUP = 5
-COL_VISIBLE = 6
+COL_MIN_ZOOM = 4
+COL_FIELDS = 5
+COL_POPUP = 6
+COL_VISIBLE = 7
 
 
 class DataTab(QWidget):
@@ -74,20 +75,36 @@ class DataTab(QWidget):
         row_add.addWidget(btn_add)
         lay.addLayout(row_add)
 
+        row_reload = QHBoxLayout()
+        btn_reload = QPushButton(self.tr('↻ QGISから書式を再読み込み'))
+        btn_reload.setToolTip(self.tr(
+            'この画面を開いたままQGIS側でレイヤーを追加・削除したり、名前や属性項目を\n'
+            '変更した場合に押してください。この表で設定した内容（表示順・ラベル・\n'
+            'ポップアップ項目・透過率・チェック状態）はそのまま保持されます。\n'
+            '※シンボル（色・線幅など）と凡例はHTML生成時に毎回QGISから読み直すため、\n'
+            '　色を変えただけならこのボタンを押さなくても反映されます。'
+        ))
+        btn_reload.clicked.connect(self._on_reload_clicked)
+        row_reload.addWidget(btn_reload)
+        row_reload.addStretch()
+        lay.addLayout(row_reload)
+
         lay.addWidget(QLabel(self.tr(
             '行を選択して「上へ移動／下へ移動」で表示順を変更できます。リストの上にあるレイヤーほど'
             '地図上で手前（上）に描画され、凡例（レイヤーパネル）でもこの順に並びます。'
         )))
 
-        self.table = QTableWidget(0, 7)
+        self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels([
             self.tr('グループ'), self.tr('レイヤー名（地図上の表示ラベル）'),
-            self.tr('種別'), self.tr('透過率'), self.tr('ポップアップ項目'),
+            self.tr('種別'), self.tr('透過率'), self.tr('最小ズーム'),
+            self.tr('ポップアップ項目'),
             self.tr('ポップアップ表示'), self.tr('初期表示ON'),
         ])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(COL_NAME, QHeaderView.ResizeMode.Stretch)
-        for col in (COL_GROUP, COL_TYPE, COL_OPACITY, COL_FIELDS, COL_POPUP, COL_VISIBLE):
+        for col in (COL_GROUP, COL_TYPE, COL_OPACITY, COL_MIN_ZOOM,
+                    COL_FIELDS, COL_POPUP, COL_VISIBLE):
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -193,6 +210,77 @@ class DataTab(QWidget):
             self._add_layer_by_id(layer_id)
         self.refresh_pick_list()
 
+    # ------------------------------------------------------------
+    def reload_from_project(self):
+        """Re-read the current QGIS project without discarding anything
+        the user configured here (spec item 4).
+
+        What's actually stale while this dialog sits open is narrower
+        than it looks: symbology, labels and the legend are read from
+        the live layer at HTML-generation time, so a color change in
+        QGIS already reaches the output with no reload at all. What
+        *is* snapshotted at add-time - and so genuinely needs this - is
+        the layer's field list (the ポップアップ項目 config), its name
+        and group, and the set of layers itself.
+
+        Everything the user set in this table is keyed to the layer ID
+        and carried across: display order, edited labels, popup field
+        visibility/order, raster opacity, and both checkbox columns.
+        Returns (removed_labels, added_labels) for the caller's summary.
+        """
+        self._sync_labels_from_table()
+
+        kept = []
+        removed = []
+        for entry in self._entries:
+            layer = layer_utils.get_layer_by_id(entry['layer_id'])
+            if layer is None:
+                # Deleted from the project since it was added here.
+                removed.append(entry['label'])
+                continue
+            if entry['label'] == entry.get('auto_label'):
+                # Still the plain QGIS name, so follow a rename there.
+                entry['label'] = layer.name()
+            entry['auto_label'] = layer.name()
+            if not isinstance(layer, QgsRasterLayer):
+                # Adapt the saved field config to the layer's fields as
+                # they are NOW: fields added in QGIS since this entry was
+                # created appear (visible, at the end), fields that no
+                # longer exist drop out, and the user's own ordering and
+                # visibility choices for everything else are preserved.
+                entry['field_config'] = field_config.reconcile_field_config(
+                    layer, entry['field_config'] or field_config.default_field_config(layer)
+                )
+            kept.append(entry)
+        self._entries = kept
+
+        # Layers made visible in QGIS since the dialog opened are added
+        # at the front, mirroring _populate_visible_layers' ordering.
+        added = []
+        known = set(self._added_layer_ids())
+        for layer_id in reversed(layer_utils.list_visible_layer_ids()):
+            if layer_id in known:
+                continue
+            before = len(self._entries)
+            self._add_layer_by_id(layer_id)
+            if len(self._entries) > before:
+                added.append(self._entries[-1]['label'])
+
+        self._rebuild_table()
+        self.refresh_pick_list()
+        return removed, added
+
+    def _on_reload_clicked(self):
+        removed, added = self.reload_from_project()
+        lines = [self.tr('QGISの現在の状態を読み直しました。')]
+        if added:
+            lines.append(self.tr('追加されたレイヤー: {0}').format('、'.join(added)))
+        if removed:
+            lines.append(self.tr('プロジェクトから削除されたため除外: {0}').format('、'.join(removed)))
+        if not added and not removed:
+            lines.append(self.tr('レイヤーの増減はありません（項目名・グループ名などを更新しました）。'))
+        QMessageBox.information(self, self.tr('再読み込み'), '\n'.join(lines))
+
     def _add_layer_by_id(self, layer_id):
         if not layer_id or layer_id in self._added_layer_ids():
             return
@@ -222,9 +310,21 @@ class DataTab(QWidget):
                 initial_config = field_config.default_field_config(layer)
             opacity = None  # not applicable to vector layers
 
+        # QGIS's own scale-based visibility, converted to a Leaflet zoom
+        # level, becomes this layer's default 最小ズーム (spec item 6-A).
+        zoom_range = layer_utils.scale_visibility_zoom_range(layer)
+        min_zoom = (zoom_range or {}).get('min')
+
         self._entries.append({
             'layer_id': layer_id,
             'label': layer.name(),
+            'min_zoom': min_zoom,
+            'max_zoom': (zoom_range or {}).get('max'),
+            # The QGIS layer name this entry's label was derived from.
+            # Comparing it against 'label' is how reload_from_project
+            # tells "the user renamed this on purpose" (keep it) from
+            # "it's still just the QGIS name" (follow a QGIS rename).
+            'auto_label': layer.name(),
             'default_visible': True,
             'field_config': initial_config,
             'show_popup': True,
@@ -301,6 +401,24 @@ class DataTab(QWidget):
             # (style_extractor.py extracts it automatically) - no
             # separate control needed here.
             self.table.setCellWidget(row, COL_OPACITY, self._centered(QLabel('—')))
+
+        # spec item 6-A: pre-filled from QGIS's own 縮尺に応じた表示設定
+        # when the layer has one, so the common case needs no input here
+        # at all; 0 means "always visible".
+        spn_zoom = QSpinBox()
+        spn_zoom.setRange(0, 24)
+        spn_zoom.setSpecialValueText(self.tr('制限なし'))
+        spn_zoom.setValue(int(entry.get('min_zoom') or 0))
+        spn_zoom.setToolTip(self.tr(
+            'この値より小さい（広域の）ズームでは、このレイヤーを地図に描画しません。\n'
+            '広域表示で地物が多すぎて見づらい場合に使います。\n'
+            'QGIS側で「縮尺に応じた表示設定」をしてあるレイヤーは、その値から\n'
+            '自動で換算した初期値が入っています。0（制限なし）で常に表示します。'
+        ))
+        spn_zoom.valueChanged.connect(
+            lambda value, e=entry: e.__setitem__('min_zoom', value or None)
+        )
+        self.table.setCellWidget(row, COL_MIN_ZOOM, self._centered(spn_zoom))
 
         if layer_type == 'vector':
             cell = QWidget()
@@ -485,6 +603,8 @@ class DataTab(QWidget):
                 'default_visible': entry['default_visible'],
                 'show_popup': entry.get('show_popup', True),
                 'opacity': entry.get('opacity'),
+                'min_zoom': entry.get('min_zoom'),
+                'max_zoom': entry.get('max_zoom'),
                 'field_order': (
                     field_config.visible_field_order(entry['field_config']) if entry['field_config'] else None
                 ),
