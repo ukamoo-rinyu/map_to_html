@@ -293,6 +293,41 @@ class DisplayTab(QWidget):
         lay_search_list.addWidget(self.chk_feature_table)
         root.addWidget(grp_search_list)
 
+        # ---- Selection + data export (spec item 9) --------------------
+        grp_export = QGroupBox(self.tr('地物の選択・データ出力'))
+        lay_export = QVBoxLayout(grp_export)
+        self.chk_selection = QCheckBox(
+            self.tr('地物の選択とCSV/GeoJSON出力を使えるようにする')
+        )
+        self.chk_selection.setToolTip(self.tr(
+            'クリック／Ctrl+クリック／範囲（矩形）で地物を選択し、選択分または\n'
+            'レイヤー全体をCSV・GeoJSONでダウンロードできるようになります。\n'
+            'ボタンは一覧表パネルの下部に表示されます（一覧表の表示が必要です）。'
+        ))
+        self.chk_selection.toggled.connect(self._update_selection_enabled)
+        lay_export.addWidget(self.chk_selection)
+
+        self.chk_force_text_codes = QCheckBox(self.tr(
+            'ゼロ始まりの番号をExcelで欠けないよう ="0123" 形式で出力する'
+        ))
+        self.chk_force_text_codes.setToolTip(self.tr(
+            '施設コードなど先頭が0の値は、通常のCSVだとExcelで開いた時に\n'
+            '0が消えて「123」になります。この形式なら消えませんが、\n'
+            'Excel以外のツールに取り込む場合は ="..." が邪魔になることがあります。'
+        ))
+        self.chk_pretty_geojson = QCheckBox(
+            self.tr('GeoJSONを整形して出力する（読みやすいがファイルは大きくなる）')
+        )
+        for widget in (self.chk_force_text_codes, self.chk_pretty_geojson):
+            widget.setStyleSheet('margin-left: 18px;')
+            lay_export.addWidget(widget)
+        lay_export.addWidget(QLabel(self.tr(
+            'CSVはBOM付きUTF-8で出力するため、Excelで開いても文字化けしません。'
+            '緯度・経度の列が自動で追加されます（面・線は重心）。'
+        )))
+        self._update_selection_enabled()
+        root.addWidget(grp_export)
+
         root.addStretch()
 
     def _update_fixed_enabled(self):
@@ -310,6 +345,11 @@ class DisplayTab(QWidget):
         enabled = self.chk_opacity_override.isChecked()
         self.sl_opacity.setEnabled(enabled)
         self.lb_opacity.setEnabled(enabled)
+
+    def _update_selection_enabled(self):
+        enabled = self.chk_selection.isChecked()
+        self.chk_force_text_codes.setEnabled(enabled)
+        self.chk_pretty_geojson.setEnabled(enabled)
 
     def _update_links_enabled(self):
         enabled = self.chk_links.isChecked()
@@ -396,6 +436,16 @@ class DisplayTab(QWidget):
             'scaleBar': (
                 {'position': self.cb_scalebar_pos.currentData()}
                 if self.chk_scalebar.isChecked() else None
+            ),
+            # The export UI lives in the feature-table panel, so it can
+            # only be reached when that panel is published at all.
+            'selection': (
+                {
+                    'forceTextCodes': self.chk_force_text_codes.isChecked(),
+                    'prettyGeoJson': self.chk_pretty_geojson.isChecked(),
+                }
+                if (self.chk_selection.isChecked() and self.chk_feature_table.isChecked())
+                else None
             ),
             'popupShowEmpty': self.chk_popup_show_empty.isChecked(),
             'popupLinkifyUrls': self.chk_popup_linkify.isChecked(),

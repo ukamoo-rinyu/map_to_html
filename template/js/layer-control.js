@@ -69,8 +69,33 @@ function buildPopupContext(layerConfig, display) {
   };
 }
 
-function initLayerControl(map, layersConfig, layersData, layersStyleData, display) {
-  if (!layersConfig || !layersConfig.length) return;
+/* Drives #loading-overlay. Building a large layer blocks the main
+   thread, so the counter only actually paints if we hand control back
+   to the browser between layers - hence the setTimeout chain in
+   initLayerControl rather than a plain forEach. */
+function fagSetLoadingProgress(done, total) {
+  var el = document.getElementById('loading-text');
+  if (el) el.textContent = 'Loading… ' + done + '/' + total + ' layers';
+}
+
+function fagRemoveLoadingOverlay() {
+  var el = document.getElementById('loading-overlay');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+/* `onComplete` runs once every layer is on the map and the panel is
+   rendered. main.js does the rest of its wiring there rather than on
+   the next line, because the work below is now spread across several
+   event-loop turns - FAG_FEATURES_BY_LAYER (search, feature table) and
+   FAG_LABEL_REGISTRY (label layer) aren't fully populated until it
+   fires. */
+function initLayerControl(map, layersConfig, layersData, layersStyleData, display, onComplete) {
+  onComplete = onComplete || function () {};
+  if (!layersConfig || !layersConfig.length) {
+    fagRemoveLoadingOverlay();
+    onComplete();
+    return;
+  }
   display = display || {};
   var popupTrigger = display.popupTrigger;
 
@@ -111,7 +136,8 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, displa
   // items/groups keep their original relative position instead of
   // being split into "all groups, then all items".
   var tree = { children: {}, order: [] };
-  layersConfig.forEach(function (layerConfig) {
+
+  function buildOne(layerConfig) {
     var geojson = layersData[layerConfig.id];
     var styleData = layersStyleData[layerConfig.id] || {};
     // showPopup === false (データ設定 tab's per-layer "ポップアップ表示"
@@ -166,20 +192,42 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, displa
         categoryLegend: styleData.categoryLegend || null,
       },
     });
-  });
-
-  // Map-unit stroke widths (real-world meters, see style-renderer.js's
-  // FAG_MAPUNIT_PATHS): resolve them to px for the initial zoom now
-  // that every layer is built, then keep them tracking the zoom level
-  // so zooming out shrinks them exactly like QGIS's マップ単位 widths
-  // (instead of a constant screen thickness swallowing the whole map).
-  if (FAG_MAPUNIT_PATHS.length) {
-    fagUpdateMapUnitWeights(map);
-    map.on('zoomend', function () { fagUpdateMapUnitWeights(map); });
   }
 
-  renderLayerTree(tree, listEl, map);
-  refreshGroupCheckboxStates();
+  function finish() {
+    // Map-unit stroke widths (real-world meters, see style-renderer.js's
+    // FAG_MAPUNIT_PATHS): resolve them to px for the initial zoom now
+    // that every layer is built, then keep them tracking the zoom level
+    // so zooming out shrinks them exactly like QGIS's マップ単位 widths
+    // (instead of a constant screen thickness swallowing the whole map).
+    if (FAG_MAPUNIT_PATHS.length) {
+      fagUpdateMapUnitWeights(map);
+      map.on('zoomend', function () { fagUpdateMapUnitWeights(map); });
+    }
+
+    renderLayerTree(tree, listEl, map);
+    refreshGroupCheckboxStates();
+    fagRemoveLoadingOverlay();
+    onComplete();
+  }
+
+  // One layer per event-loop turn: the counter in #loading-overlay only
+  // means anything if the browser gets a chance to paint between
+  // layers, and on a large export each layer is a long enough block of
+  // work that the difference is very visible. The 0ms timeout is not a
+  // delay - it's the yield.
+  var index = 0;
+  fagSetLoadingProgress(0, layersConfig.length);
+  (function step() {
+    if (index >= layersConfig.length) {
+      finish();
+      return;
+    }
+    buildOne(layersConfig[index]);
+    index += 1;
+    fagSetLoadingProgress(index, layersConfig.length);
+    setTimeout(step, 0);
+  })();
 }
 
 /* Recursively brings every Path child (circleMarker/polygon/polyline -

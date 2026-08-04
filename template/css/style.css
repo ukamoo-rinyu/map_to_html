@@ -444,6 +444,85 @@ html, body {
 }
 #feature-table-panel.fag-collapsed { max-height: none; }
 
+/* ---- Selection + export bar (spec item 9) ----
+   First child of the panel, so column-reverse pins it to the very
+   bottom - it stays reachable while the table itself is collapsed,
+   which is the state the panel starts in. ---- */
+#selection-bar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--border-color);
+}
+#selection-bar-row,
+#selection-bar-row-2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+#selection-bar button {
+  font-family: inherit;
+  font-size: 11px;
+  padding: 3px 7px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--panel-bg);
+  color: var(--text-color);
+  cursor: pointer;
+}
+#selection-bar button:hover { background: var(--hover-bg, #f0f0f0); }
+#selection-rect-btn.fag-active {
+  background: #ffd400;
+  border-color: #7a5c00;
+  color: #3a2c00;
+  font-weight: 700;
+}
+#selection-count {
+  font-size: 11px;
+  color: var(--muted-color);
+  margin-left: auto;
+}
+.fag-table-row.fag-row-selected {
+  background: rgba(255, 212, 0, 0.28);
+}
+
+/* ---- Loading overlay (spec item 8, "真っ白な画面が一番つらい") ----
+   Sits above the map but below the panels' z-index 1000 stacking so it
+   never traps a click once removed. Removed outright (not just hidden)
+   by layer-control.js when the last layer is built. ---- */
+#loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel-bg, #fff);
+}
+#loading-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted-color);
+  font-size: 13px;
+}
+#loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border-color, #ddd);
+  border-top-color: var(--header-bg, #3b4656);
+  border-radius: 50%;
+  animation: fag-spin 0.8s linear infinite;
+}
+@keyframes fag-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  #loading-spinner { animation: none; }
+}
+
 /* The feature table owns the bottom-left corner (left/bottom 10px,
    360px wide), which is also where a "左下" scale bar lands - they
    overlapped. Shift Leaflet's bottom-left control corner clear of the

@@ -189,18 +189,98 @@ minZoom に落ちた。`invalidateSize()` 後は正常。これはブラウザ�
 パネルの上（bottom763 ≤ panel top768）に退避することを確認。
 ※ 1のQScrollAreaはQt側なのでブラウザでは検証不可、実機確認が必要。
 
+### v0.4.0 第2弾: 8-④ / 進捗表示 / 項目9（2026-08-05、同日）
+
+**8-④ `<script type="application/json">` + `JSON.parse`**
+単一HTML出力を `const layersData = {...}` のオブジェクトリテラルから
+`<script type="application/json">` ＋ `JSON.parse` に変更。既存の
+`_json_for_inline_script`（`</` → `<\/`）はそのまま使える —
+**JSONは `\/` をソリダスのエスケープとして明示的に許可している**ので、
+同じ文字列がJSとしてもJSONとしても妥当。
+
+**分割出力（config.js/layers.js）はあえて据え置き**。`<script src>` で
+読むため同じ手を使うには (a) `fetch()`（file:// ではCORSで不可＝共有
+フォルダから開く運用と真っ向から衝突）か (b) JSONをJS文字列リテラルに
+二重エンコード（全ての `"` がエスケープされてファイルが膨らむ＝そちらで
+効く転送量削減と逆行）のどちらかになる。コード内にも明記済み。
+
+**進捗表示**: `base.html` に `#loading-overlay` を**初期マークアップとして
+可視状態で**追加（スクリプトが動く前に描画される＝真っ白画面の解消）。
+ただの飾りにしないため、`initLayerControl` を **1レイヤー＝1イベント
+ループターン**（`setTimeout(step, 0)`）に変更した。`setTimeout` は
+待ち時間ではなく**ブラウザに描画の機会を返すためのyield**。
+
+→ これに伴い `initLayerControl` に `onComplete` コールバックを追加し、
+`main.js` は `initLabelLayer`/`initLabelClickPopup`/`initSearch`/
+`initFeatureTable`/`initSelection` をその中で呼ぶよう変更。
+**理由**: レイヤー構築が複数ターンに分かれたので、`FAG_FEATURES_BY_LAYER`
+（検索・一覧表）と `FAG_LABEL_REGISTRY`（ラベル）は次の行では
+まだ埋まっていない。
+
+**項目9: 選択モードとCSV/GeoJSON出力**（新規 `template/js/selection.js`）
+- 選択状態は `FAG_SELECTION = {layerId: {fid: true}}`
+- **強調表示は別オーバーレイレイヤーで描く**（元の地物を `setStyle` しない）。
+  理由: `style-renderer.js` の `bindHoverHighlight` は各レイヤーの
+  ベースライン options をスナップショットして mouseout で復元し、
+  `fagUpdateMapUnitWeights` はズームごとに `weight` を書き換えるので、
+  同じ options を触る選択表示はどちらにも黙って打ち消される
+- クリック選択／Ctrl+クリックで追加・解除／矩形選択（面・線はバウンディング
+  ボックスの交差判定＝指示書どおり）／一覧表の行クリックとの双方向同期
+- CSV: **BOM付きUTF-8**、別名ヘッダ、`,`/`"`/改行のクォート、
+  緯度経度列の自動付与（面・線は重心、ポップアップのGoogleリンクと同じ
+  `fagFeatureLatLng` を共用するので値が食い違わない）、
+  ゼロ始まりコードの `="0123"` 形式（設定でON/OFF）
+- GeoJSON: `crs` メンバなし（RFC 7946）、整形の有無を設定可
+- 5000件超で確認ダイアログ、ファイル名に日時
+- **選択CSVはレイヤーごとに別ファイル**にした。選択は複数レイヤーに
+  またがれるが列構成が違うので、1ファイルにまとめると全レイヤーの
+  フィールドの和集合＋大量の空欄になり、ヘッダが意味をなさなくなる
+
+**検証中に見つけて直した実バグ**: Leafletは地物クリック時に
+**そのレイヤーの 'click' の後にマップの 'click' も発火**する。
+そのため「空きマップのクリックで選択解除」ハンドラが、直前に地物
+ハンドラが作った選択を即座に消していた（＝通常クリックでの選択が
+まったく効かない）。`event.originalEvent` の同一性で「同じ物理クリック」を
+判定して回避（フラグやタイマーと違い、propagationが止まってマップ
+クリックが来なかった場合に状態が残らない）。
+
+**検証**: 単一HTML出力をブラウザで実測 —
+JSON.parse経路で3レイヤー読み込み・ローディングオーバーレイ除去を確認。
+選択: 通常クリックで選択→Ctrl+クリックで解除→再クリックで選択→
+本当に何もない場所のクリックで解除、の一連が正しく動くことを
+canvas要素への合成MouseEventで確認（**マップコンテナではなくcanvas要素に
+dispatchする必要がある** — Canvasレンダラのリスナはcanvas側にあり、
+イベントは上へバブルするので親に投げても届かない）。
+CSV: 別名ヘッダ・緯度経度列・`"A,B ""quoted"""`・改行含みセル・
+`="0123"` を実出力で確認。面レイヤーの緯度経度が重心(34.695,135.505)に
+なることも確認。GeoJSON: `crs`なし・`_fid`/`label_text`除去を確認。
+一覧表の行ハイライトはハイライト適用を確認済み（ただし
+**ブラウザペイン非表示時は `requestAnimationFrame` が発火せず**
+`scheduleRowRender` の再入ガードが立ちっぱなしになるため、
+rAFを同期実行にモンキーパッチして検証した）。
+
 ### 未着手（指示書の残り）
 
-- **8-④** `<script type="application/json">` + `JSON.parse` 方式
-- **8-⑥** レイヤーの遅延読み込み（④が前提）
-- **8 進捗表示** 「データ読み込み中… 3/8レイヤー」
 - **6** 重なり時の間引き表示（優先度C）
-- **9** 選択モード＋CSV/GeoJSON出力（優先度C）
 - **10** 斜線（パターン）塗りつぶし（優先度C）
-- **9/10 の設計上の注意**: 10 は `preferCanvas`/`L.canvas()` と衝突するので
-  レイヤーごとに `L.canvas()`/`L.svg()` を使い分ける必要がある。現状は
-  `map-core.js` で map 全体に `renderer: L.canvas()` を渡しているため、
-  ここを per-layer 指定に変える設計変更が先に要る
+- **8-⑥** レイヤーの遅延読み込み
+
+**10 の設計上の注意**: SVG `<pattern>` は `L.canvas()` では使えない。現状は
+`map-core.js` で map 全体に `renderer: L.canvas()` を渡しているので、
+**レイヤーごとに `L.canvas()`/`L.svg()` を選べるようにする設計変更が先に要る**
+（大量の点レイヤー→Canvas、少数の斜線ポリゴン→SVG）。凡例スウォッチにも
+同じ `<pattern>` を参照させること（`buildLegendSwatchHtml`）。
+
+**8-⑥ の設計上の注意（調査済み・要判断）**: 遅延読み込みは既存の3機能と
+真正面から衝突する。着手前にこの3つの解決方針を決めること。
+1. `spreadOverlappingPointsAcrossLayers` は**全マーカーレイヤーの地物を
+   プールしてから**でないと重複座標を検出できない → Python側（エクスポート時）に
+   移すのが筋。実行時コストも消えるので一石二鳥
+2. `getCombinedBounds`（autoFit）は全レイヤーの座標を要求する →
+   レイヤーごとのbboxをPython側で事前計算して config に入れれば解決
+3. `search.js`/`point-list.js` は `FAG_FEATURES_BY_LAYER` を参照するため、
+   未パースのレイヤーは検索・一覧表に出てこなくなる → 仕様として許容するか、
+   要求時にパースするか要判断
 
 **未検証**: 実際のQGISでの動作確認（`.py` を変更しているのでQGISの再起動が
 必要）。特に (a) `symbol.opacity()`/`layer.opacity()` が期待どおりの値を

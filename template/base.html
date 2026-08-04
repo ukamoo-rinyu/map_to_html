@@ -22,6 +22,16 @@
   <div id="app-body">
     <main id="map-pane">
       <div id="map"></div>
+      <!-- Visible in the initial markup (no fag-hidden), so it paints
+           before any script runs - a large export otherwise showed a
+           blank white rectangle for the whole load. layer-control.js
+           updates the count and removes it when every layer is built. -->
+      <div id="loading-overlay">
+        <div id="loading-box">
+          <div id="loading-spinner"></div>
+          <div id="loading-text">Loading…</div>
+        </div>
+      </div>
       <div id="layer-panel" class="fag-hidden">
         <div id="layer-panel-header">
           <span id="layer-panel-title">Layers</span>
@@ -30,6 +40,22 @@
         <ul id="layer-panel-list"></ul>
       </div>
       <div id="feature-table-panel" class="fag-hidden fag-collapsed">
+        <!-- First child, so the panel's column-reverse layout puts this
+             at the very bottom - it stays visible while the table
+             itself is collapsed. -->
+        <div id="selection-bar" class="fag-hidden">
+          <div id="selection-bar-row">
+            <button id="selection-rect-btn" type="button" title="Drag a rectangle on the map to select features">▭ Select area</button>
+            <span id="selection-count">None selected</span>
+            <button id="selection-clear-btn" type="button" title="Clear the selection">Clear</button>
+          </div>
+          <div id="selection-bar-row-2">
+            <button id="export-csv-selected" type="button" title="Export the selected features as CSV">CSV (selected)</button>
+            <button id="export-csv-all" type="button" title="Export every feature of the layer shown in the table as CSV">CSV (layer)</button>
+            <button id="export-geojson-selected" type="button" title="Export the selected features as GeoJSON">GeoJSON (selected)</button>
+            <button id="export-geojson-all" type="button" title="Export every feature of the layer shown in the table as GeoJSON">GeoJSON (layer)</button>
+          </div>
+        </div>
         <div id="feature-table-header">
           <select id="feature-table-layer-select"></select>
           <span id="feature-table-count"></span>

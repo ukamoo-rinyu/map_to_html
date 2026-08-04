@@ -38,15 +38,20 @@ function applyTheme(theme) {
 
   FAG.map = initMap(config);
   applyDisplaySettings(FAG.map, layersData, config.display);
-  initLayerControl(FAG.map, config.layers, layersData, layersStyleData, config.display);
-  initLabelLayer(FAG.map);
-  initLabelClickPopup(FAG.map);
-  // Both read FAG_FEATURES_BY_LAYER, populated by initLayerControl
-  // above via buildStyledLayer's registerFeature calls - must run
-  // after it. Each no-ops on its own if config.display disabled it.
-  initSearch(config, FAG.map);
-  initFeatureTable(config, FAG.map);
+  // initLayerControl now builds one layer per event-loop turn so the
+  // loading counter can paint (spec item 8), so everything that depends
+  // on the registries it fills goes in the completion callback rather
+  // than on the following line: FAG_LABEL_REGISTRY for the label layer,
+  // FAG_FEATURES_BY_LAYER for search and the feature table. Each of
+  // these still no-ops on its own if config.display disabled it.
+  initLayerControl(FAG.map, config.layers, layersData, layersStyleData, config.display, function () {
+    initLabelLayer(FAG.map);
+    initLabelClickPopup(FAG.map);
+    initSearch(config, FAG.map);
+    initFeatureTable(config, FAG.map);
+    initSelection(config, FAG.map);
 
-  // Panels/CSS can change the map container size after Leaflet measured it once.
-  setTimeout(function () { FAG.map.invalidateSize(); }, 150);
+    // Panels/CSS can change the map container size after Leaflet measured it once.
+    setTimeout(function () { FAG.map.invalidateSize(); }, 150);
+  });
 })();

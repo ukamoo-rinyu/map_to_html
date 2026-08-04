@@ -58,6 +58,10 @@ def build_config(settings):
             'popupShowEmpty': bool(display.get('popupShowEmpty', False)),
             'popupLinkifyUrls': bool(display.get('popupLinkifyUrls', True)),
             'popupLinks': display.get('popupLinks') or None,
+            # None when the plugin's 地物の選択・データ出力 checkbox is
+            # off - selection.js then adds no selection handlers and the
+            # export bar stays hidden (spec item 9).
+            'selection': display.get('selection') or None,
             # Scale bar (spec item 1) - omitted entirely rather than
             # emitted as false, so the template can skip the control.
             'scaleBar': display.get('scaleBar') or None,
