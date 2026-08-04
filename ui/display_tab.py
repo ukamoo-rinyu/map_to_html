@@ -2,10 +2,11 @@
 """Tab 2 (subset): screen size / responsive / initial view / zoom
 limits only (spec 3.1, Tab 2). Widgets (scale bar, geolocate, ...) and
 the layer-list panel are phase 2 (spec section 6)."""
+from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QGroupBox,
     QCheckBox, QRadioButton, QButtonGroup, QSpinBox, QDoubleSpinBox,
-    QComboBox, QLineEdit,
+    QComboBox, QLineEdit, QSlider,
 )
 
 
@@ -63,11 +64,18 @@ class DisplayTab(QWidget):
         lay_view = QVBoxLayout(grp_view)
         self.rb_autofit = QRadioButton(self.tr('データの範囲に自動フィット'))
         self.rb_autofit.setChecked(True)
+        self.rb_canvas = QRadioButton(self.tr('現在のQGIS画面の表示範囲を初期表示にする'))
+        self.rb_canvas.setToolTip(self.tr(
+            'HTMLの地図とQGISの画面では縦横比が異なるため、表示範囲は完全には一致しません。'
+            '指定した範囲が必ず収まるように表示されます。'
+        ))
         self.rb_manual = QRadioButton(self.tr('中心座標・ズームレベルを手動指定'))
         self.view_group = QButtonGroup(self)
         self.view_group.addButton(self.rb_autofit)
+        self.view_group.addButton(self.rb_canvas)
         self.view_group.addButton(self.rb_manual)
         lay_view.addWidget(self.rb_autofit)
+        lay_view.addWidget(self.rb_canvas)
 
         row_manual = QHBoxLayout()
         row_manual.addWidget(self.rb_manual)
@@ -127,6 +135,52 @@ class DisplayTab(QWidget):
         self._update_basemap_enabled()
         root.addWidget(grp_basemap)
 
+        # ---- Scale bar (spec item 1) ----------------------------------
+        grp_scale = QGroupBox(self.tr('スケールバー'))
+        lay_scale = QHBoxLayout(grp_scale)
+        self.chk_scalebar = QCheckBox(self.tr('スケールバーを表示する'))
+        self.chk_scalebar.setChecked(True)
+        self.chk_scalebar.toggled.connect(self._update_scalebar_enabled)
+        lay_scale.addWidget(self.chk_scalebar)
+        lay_scale.addWidget(QLabel(self.tr('表示位置:')))
+        self.cb_scalebar_pos = QComboBox()
+        for key, label in (
+            ('bottomleft', self.tr('左下')),
+            ('bottomright', self.tr('右下')),
+        ):
+            self.cb_scalebar_pos.addItem(label, key)
+        lay_scale.addWidget(self.cb_scalebar_pos)
+        lay_scale.addStretch()
+        self._update_scalebar_enabled()
+        root.addWidget(grp_scale)
+
+        # ---- Fill opacity override (spec item 2) ----------------------
+        grp_opacity = QGroupBox(self.tr('透過率'))
+        lay_opacity = QVBoxLayout(grp_opacity)
+        self.chk_opacity_override = QCheckBox(
+            self.tr('塗りの透過率を上書きする（QGISの設定を無視して一律適用）')
+        )
+        self.chk_opacity_override.toggled.connect(self._update_opacity_enabled)
+        lay_opacity.addWidget(self.chk_opacity_override)
+        row_opacity = QHBoxLayout()
+        row_opacity.addWidget(QLabel(self.tr('不透明度:')))
+        self.sl_opacity = QSlider(Qt.Orientation.Horizontal)
+        self.sl_opacity.setRange(0, 100)
+        self.sl_opacity.setValue(40)
+        row_opacity.addWidget(self.sl_opacity, 1)
+        self.lb_opacity = QLabel('40%')
+        self.lb_opacity.setMinimumWidth(40)
+        self.sl_opacity.valueChanged.connect(
+            lambda value: self.lb_opacity.setText('{0}%'.format(value))
+        )
+        row_opacity.addWidget(self.lb_opacity)
+        lay_opacity.addLayout(row_opacity)
+        lay_opacity.addWidget(QLabel(self.tr(
+            'ポリゴンの塗りとマーカーの塗りに適用されます。枠線の色・透過率は変更しません。'
+        )))
+        self._update_opacity_enabled()
+        root.addWidget(grp_opacity)
+
         grp_popup = QGroupBox(self.tr('ポップアップ・ホバー動作・帰属表示'))
         lay_popup = QVBoxLayout(grp_popup)
         self.rb_popup_click = QRadioButton(self.tr('クリック時にポップアップを表示（既定、ホバー時はハイライトのみ）'))
@@ -153,6 +207,62 @@ class DisplayTab(QWidget):
 
         root.addWidget(grp_popup)
 
+        # ---- Popup contents (spec item 7-6/7-7) -----------------------
+        grp_popup_content = QGroupBox(self.tr('ポップアップの内容'))
+        lay_popup_content = QVBoxLayout(grp_popup_content)
+        self.chk_popup_show_empty = QCheckBox(
+            self.tr('値が空の項目も表示する（既定：空の項目は表示しない）')
+        )
+        lay_popup_content.addWidget(self.chk_popup_show_empty)
+        self.chk_popup_linkify = QCheckBox(
+            self.tr('http で始まる値をリンクにする（画像URLは画像として表示）')
+        )
+        self.chk_popup_linkify.setChecked(True)
+        lay_popup_content.addWidget(self.chk_popup_linkify)
+        lay_popup_content.addWidget(QLabel(self.tr(
+            '表示する項目と並び順は「データ設定」タブのレイヤーごとの「設定…」で指定します。'
+            '項目名はQGISのフィールド別名（エイリアス）があればそちらを表示します。'
+        )))
+        root.addWidget(grp_popup_content)
+
+        # ---- External map links (spec item 11) ------------------------
+        grp_links = QGroupBox(self.tr('地図リンク'))
+        lay_links = QVBoxLayout(grp_links)
+        self.chk_links = QCheckBox(self.tr('ポップアップに地図リンクを表示する'))
+        self.chk_links.setChecked(True)
+        self.chk_links.toggled.connect(self._update_links_enabled)
+        lay_links.addWidget(self.chk_links)
+
+        # Defaults follow the spec's reasoning: the popup is narrow, so
+        # only the two most-used links are on out of the box.
+        self.chk_link_gmap = QCheckBox(self.tr('Googleマップで開く'))
+        self.chk_link_gmap.setChecked(True)
+        self.chk_link_sv = QCheckBox(self.tr('ストリートビューで見る'))
+        self.chk_link_sv.setChecked(True)
+        self.chk_link_dir = QCheckBox(self.tr('ここへの経路'))
+        self.chk_link_gsi = QCheckBox(self.tr('地理院地図で開く（空中写真・災害情報などの確認に便利）'))
+        for widget in (self.chk_link_gmap, self.chk_link_sv, self.chk_link_dir, self.chk_link_gsi):
+            widget.setStyleSheet('margin-left: 18px;')
+            lay_links.addWidget(widget)
+
+        row_name = QHBoxLayout()
+        self.chk_link_name = QCheckBox(self.tr('施設名でGoogle検索'))
+        self.chk_link_name.setStyleSheet('margin-left: 18px;')
+        self.chk_link_name.toggled.connect(self._update_links_enabled)
+        row_name.addWidget(self.chk_link_name)
+        row_name.addWidget(QLabel(self.tr('名称に使う項目:')))
+        # Populated by set_name_fields() from the layers actually added
+        # on the データ設定 tab - editable so a re-read of the tab isn't
+        # required to type a field name the picker hasn't seen yet.
+        self.cb_name_field = QComboBox()
+        self.cb_name_field.setEditable(True)
+        self.cb_name_field.setMinimumWidth(160)
+        row_name.addWidget(self.cb_name_field, 1)
+        lay_links.addLayout(row_name)
+
+        self._update_links_enabled()
+        root.addWidget(grp_links)
+
         # v0.3.0 tasks 3-1/3-2: no per-field configuration needed here -
         # both features reuse whichever fields are already visible in
         # each layer's ポップアップ項目 picker (Tab 1), so there's
@@ -176,6 +286,33 @@ class DisplayTab(QWidget):
 
     def _update_basemap_enabled(self):
         self.cb_basemap.setEnabled(self.chk_basemap.isChecked())
+
+    def _update_scalebar_enabled(self):
+        self.cb_scalebar_pos.setEnabled(self.chk_scalebar.isChecked())
+
+    def _update_opacity_enabled(self):
+        enabled = self.chk_opacity_override.isChecked()
+        self.sl_opacity.setEnabled(enabled)
+        self.lb_opacity.setEnabled(enabled)
+
+    def _update_links_enabled(self):
+        enabled = self.chk_links.isChecked()
+        for widget in (self.chk_link_gmap, self.chk_link_sv, self.chk_link_dir,
+                       self.chk_link_gsi, self.chk_link_name):
+            widget.setEnabled(enabled)
+        self.cb_name_field.setEnabled(enabled and self.chk_link_name.isChecked())
+
+    def set_name_fields(self, field_names):
+        """Refresh the "施設名でGoogle検索" field picker from the fields
+        actually available on the added layers (dialog.py calls this
+        when the データ設定 tab changes). The current selection is kept
+        when that field still exists, so switching tabs back and forth
+        doesn't silently retarget the link at a different column."""
+        current = self.cb_name_field.currentText()
+        self.cb_name_field.clear()
+        self.cb_name_field.addItems(sorted(set(field_names)))
+        if current:
+            self.cb_name_field.setEditText(current)
 
     def _update_manual_enabled(self):
         enabled = self.rb_manual.isChecked()
@@ -201,8 +338,27 @@ class DisplayTab(QWidget):
                 'center': [self.sp_lat.value(), self.sp_lng.value()],
                 'zoom': self.sp_init_zoom.value(),
             }
+        elif self.rb_canvas.isChecked():
+            # Resolved into actual WGS84 bounds by dialog.py, which is
+            # the only place with an `iface` to read the map canvas from.
+            initial_view = {'mode': 'currentCanvas'}
         else:
             initial_view = {'mode': 'autoFit'}
+
+        links = None
+        if self.chk_links.isChecked():
+            links = {
+                'googleMaps': self.chk_link_gmap.isChecked(),
+                'streetView': self.chk_link_sv.isChecked(),
+                'directions': self.chk_link_dir.isChecked(),
+                'gsi': self.chk_link_gsi.isChecked(),
+                'nameSearch': self.chk_link_name.isChecked(),
+                'nameField': self.cb_name_field.currentText().strip(),
+            }
+            if not any(links[key] for key in
+                       ('googleMaps', 'streetView', 'directions', 'gsi', 'nameSearch')):
+                # Parent checkbox on but every entry unchecked - same as off.
+                links = None
 
         display = {
             'sizeMode': size_mode,
@@ -221,5 +377,19 @@ class DisplayTab(QWidget):
             'attribution': self.le_attribution.text().strip(),
             'searchEnabled': self.chk_search.isChecked(),
             'featureTableEnabled': self.chk_feature_table.isChecked(),
+            'scaleBar': (
+                {'position': self.cb_scalebar_pos.currentData()}
+                if self.chk_scalebar.isChecked() else None
+            ),
+            'popupShowEmpty': self.chk_popup_show_empty.isChecked(),
+            'popupLinkifyUrls': self.chk_popup_linkify.isChecked(),
+            'popupLinks': links,
+            # Not part of config.js: consumed at extraction time by
+            # core/style_extractor.py, so the published page carries the
+            # already-applied opacity rather than a knob to apply it.
+            'fillOpacityOverride': (
+                self.sl_opacity.value() / 100.0
+                if self.chk_opacity_override.isChecked() else None
+            ),
         }
         return display

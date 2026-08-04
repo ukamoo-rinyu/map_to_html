@@ -5,6 +5,173 @@
 
 ---
 
+## 2026-08-05: v0.4.0 第1弾（指示書の優先度A/B項目）
+
+**ブランチ**: `feature/v0.4.0-fidelity-ux`（`main`から分岐、未マージ・未プッシュ）
+**担当**: Claude Code（Opus）
+**元資料**: `facility_app_generator_next_spec.md`（Downloads）
+
+### 着手前の棚卸し（重要）
+
+指示書は優先度Sに「8. 読み込み速度の改善」を置いていたが、実際のコードを
+確認したところ**大半が実装済み**だった:
+
+| 指示書の項目 | 実際の状態 |
+|---|---|
+| 8-① 座標桁数を6桁に丸める | 実装済（`geojson_writer.py` の `COORDINATE_PRECISION=6`） |
+| 8-② 不要な属性を出力しない | 実装済（`field_config.py` のフィールドピッカー） |
+| 8-③ ジオメトリ簡略化 | 実装済（`SIMPLIFY_TOLERANCE_DEG`） |
+| 8-⑤ Canvas レンダリング | 実装済（`map-core.js` の `renderer: L.canvas()`） |
+| 8-④ JSON.parse 方式 | **未実装** |
+| 8-⑥ レイヤーの遅延読み込み | **未実装** |
+| エスケープ処理 | 実装済（`escapeHtml` / `_json_for_inline_script`） |
+| Qt6・QGIS4 対応 | v0.3.2 で実装済 |
+
+そのため今回は優先度A・Bの項目から着手した。残りは下の「未着手」を参照。
+
+### 2. ポリゴン透過率の反映（優先度A）
+
+**問題**: QGISの透過が3か所に分散していて、そのうち**塗りつぶし色のアルファ値
+しか読んでいなかった**ため、半透明のポリゴンがべた塗りで出力されていた。
+
+最終不透明度 = 色のアルファ × `QgsSymbol.opacity()` × `QgsMapLayer.opacity()`
+を掛け合わせるよう `style_extractor.py` を修正（`_color_alpha`/`_symbol_opacity`/
+`_layer_opacity` を新設）。さらに:
+
+- **塗りと枠線で独立した不透明度**を出力（`fillOpacity`/`strokeOpacity`、
+  マーカーは `opacity`/`strokeOpacity`）。従来は1つの値を両方に使い回して
+  いたので、塗りを透過させると枠線まで消えていた
+- `Qt.NoBrush`→`hasFill:false`、`Qt.NoPen`→`hasStroke:false` を明示出力し、
+  JS側で Leaflet の `fill:false`/`stroke:false` に対応付け
+- **`dashArray` を Qt のペンスタイルから生成**（`_QT_DASH_PATTERNS`）。従来は
+  `dashed` の真偽値だけで、破線・点線・一点鎖線がすべて同じ `'6,4'` だった。
+  Qtの破線パターンは線幅の倍数で定義されるので px に換算している。
+  カスタム破線パターン（`useCustomDashPattern`）にも対応
+- 表示設定タブに**「塗りの透過率を上書きする」チェックボックス＋スライダー**を
+  追加。**プラグイン側（生成前）の設定**で、出力HTMLにはトグルを増やさない
+  （既存方針どおり）。枠線には適用しない＝形が読めなくなるのを避けるため
+
+### 3. カテゴリ値による定義の反映（優先度A）
+
+`byCategory` 自体は既存だったが、以下が欠けていたので追加:
+
+- **`renderState()` が False のカテゴリ**（QGISでチェックを外した分類）の地物を
+  **エクスポート自体から除外**。スタイル表から消すだけだと fallback スタイルで
+  復活してしまうため、`build_render_filter()` を新設して
+  `geojson_writer.py` の `feature_filter` で地物ごと落とす。検索・一覧表からも
+  同時に消える
+- **`cat.label()`（凡例ラベル）**を出力し、レイヤーパネルに**カテゴリ単位の凡例**を
+  描画（`categoryLegend` → `buildCategoryLegendHtml`）。従来はカテゴリ分類の
+  レイヤーでも凡例スウォッチが1個だけで、しかもそれは無関係な1カテゴリの色だった
+- **「その他すべての値」（value=`''`）を明示的に fallback として採用**。従来の
+  fallback は `renderer.symbols()[0]`＝たまたま先頭にあったカテゴリの
+  スタイルで、QGISの実際の描画と一致していなかった
+- QGISのNULL（`QVariant`）は `str()` すると `"NULL"` になるので `_is_null()` で
+  判定。真偽値も Python の `True` ではなく JSON の `true` に揃える
+- 「分類値→スタイル」を引く箇所を `_style_for_symbol()` に集約（指示書の
+  「次の一手」＝Graduated 対応の布石）
+
+### 7. ポップアップの表示調整（優先度A）
+
+- **縦積みレイアウトに変更**（`.fag-popup-row` を `display:flex`→`block`、
+  項目名は小さいグレーで上、値は通常サイズで下）。列名がどれだけ長くても
+  崩れなくなる
+- `max-width:320px; max-height:400px; overflow-y:auto; word-break:break-word`
+- **フィールド別名（alias）を使用**（`layer_utils.field_aliases()` →
+  `config.layers[].fieldAliases`）。別名が設定されている項目だけを出力するので
+  config.js が無駄に膨らまない
+- 空値の表示ON/OFF、`http`で始まる値のリンク化（画像URLは`<img>`）を
+  表示設定タブに追加。リンク化は `^https?://` のみ＝データ中の
+  `javascript:` がリンクにならないようにしている
+
+### 11. Googleマップリンク（優先度B）
+
+表示設定タブに親チェックボックス＋Googleマップ/ストリートビュー/経路/
+施設名検索/地理院地図。既定は指示書どおりマップ・SVのみON。
+面・線は**頂点座標の平均（重心）**を使用（`fagFeatureLatLng`）。
+座標は6桁、`encodeURIComponent`、`target="_blank" rel="noopener noreferrer"`。
+親チェックOFF時は**リンクのHTMLを一切出力しない**（DOMにも残さない）。
+
+### 1. スケールバー（優先度B）
+
+表示設定タブにチェックボックス＋表示位置（左下/右下）。OFF時は
+`config.display.scaleBar` が `null` になり `applyScaleBar` が何もしない
+＝コードごと出力されない。
+
+### 5. 現在のQGIS画面範囲を初期表示に（優先度B）
+
+初期表示のラジオボタンに3つ目を追加。`iface.mapCanvas()` の extent を
+プロジェクトCRS→EPSG:4326 に変換して `initialView.mode='bounds'` として
+出力し、Leaflet側は `fitBounds`（ズームが整数段階なので中心+ズームより
+一致しやすい）。縦横比の違いはツールチップで注記。
+extent が読めない場合は autoFit にフォールバック。
+
+### 4. 書式設定の再読み込み（優先度B）
+
+ダイアログは**すでにモードレス**だった（`plugin.py` が `show()` を使用）。
+意図を明示するため `setModal(False)` を追加。
+
+調べたところ、開いたまま古くなるのは指示書の想定より狭い:
+**シンボル・ラベル・凡例はHTML生成時に毎回ライブのレイヤーから読み直して
+いる**ので、QGISで色を変えただけなら再読み込みなしで反映される。
+実際に固定化されているのは (1) フィールド一覧（ポップアップ項目の設定）、
+(2) レイヤー名・グループ名、(3) レイヤーの増減。
+
+`reload_from_project()` を新設し、**レイヤーIDをキーに**表示順・編集した
+ラベル・ポップアップ項目の表示/並び順・ラスター透過率・両チェックボックスを
+すべて保持したままマージする。ラベルは `auto_label` と比較して
+「ユーザーが変更したか」を判定し、変更していなければQGIS側の改名に追従する。
+削除されたレイヤーは除外、QGISで新たに表示にしたレイヤーは追加し、
+結果をダイアログで要約表示する。
+
+### 検証
+
+QGIS非依存の検証サイト（scratchpad の `gen_v040_verify.py` → `html_builder.
+build_output` を直接呼ぶ）を作り、ローカルサーバ＋`javascript_tool` で実測:
+
+- 透過: ポリゴン `fillOpacity:0.3 / opacity(枠線):1.0 / dashArray:"12.0,6.0"`、
+  ライン `opacity:0.45 / dashArray:"16.0,8.0"` が Leaflet のオプションに
+  到達していることを確認（Canvasレンダラなので SVG 属性ではなく
+  `map._layers[].options` を確認）
+- カテゴリ凡例: 3行が正しいラベル（図書館／公民館（半透明）／その他すべての値）で
+  描画され、半透明カテゴリのスウォッチが `rgba(...,0.35)` になることを確認
+- divIcon（四角）マーカーが**塗り0.35・枠線1.0**の2スパン構成で描画されることを確認
+- ポップアップ: 別名（`SISETU_MEI`→施設名称）が効く／空値が非表示／
+  URLがリンク化／`& <b>` が `&amp; &lt;b&gt;` にエスケープされ `<b>` が
+  0個（＝HTMLインジェクションなし）／日本語施設名が
+  `encodeURIComponent` されることを確認
+- 面のリンク座標が第1頂点ではなく**重心** (34.695,135.505) になること、
+  名称フィールドを持たないレイヤーでは検索リンクが出ないことを確認
+- スケールバーが `leaflet-bottom leaflet-left` に出ること
+- `initialView.mode='bounds'` が要求範囲を包含すること（`containsRequested:true`,
+  zoom 15）
+
+**ハマりどころ**: 初回計測で `map.getSize()` が 0x0 を返し fitBounds が
+minZoom に落ちた。`invalidateSize()` 後は正常。これはブラウザペインが
+非表示のときの計測アーティファクトで、既存の autoFit も同じ経路なので
+今回の変更由来ではない（両方を実測して同一結果になることを確認済み）。
+
+### 未着手（指示書の残り）
+
+- **8-④** `<script type="application/json">` + `JSON.parse` 方式
+- **8-⑥** レイヤーの遅延読み込み（④が前提）
+- **8 進捗表示** 「データ読み込み中… 3/8レイヤー」
+- **6** 重なり時の間引き表示（優先度C）
+- **9** 選択モード＋CSV/GeoJSON出力（優先度C）
+- **10** 斜線（パターン）塗りつぶし（優先度C）
+- **9/10 の設計上の注意**: 10 は `preferCanvas`/`L.canvas()` と衝突するので
+  レイヤーごとに `L.canvas()`/`L.svg()` を使い分ける必要がある。現状は
+  `map-core.js` で map 全体に `renderer: L.canvas()` を渡しているため、
+  ここを per-layer 指定に変える設計変更が先に要る
+
+**未検証**: 実際のQGISでの動作確認（`.py` を変更しているのでQGISの再起動が
+必要）。特に (a) `symbol.opacity()`/`layer.opacity()` が期待どおりの値を
+返すか（線幅で `widthUnit()` がシンボル層側にあった前科があるので要確認）、
+(b) カテゴリのチェックを外した地物が本当に出力されないか、
+(c) 再読み込みボタンが実プロジェクトで設定を保持するか。
+
+---
+
 ## 2026-07-27: v0.3.2 リリース準備（Qt6/QGIS4対応・マップ単位ラベル・一覧表/レイヤーパネル修正）
 
 **担当**: Claude Code（Sonnet）

@@ -22,7 +22,8 @@ AUTO_ID_FIELD = '_fid'
 SIMPLIFY_TOLERANCE_DEG = 0.00002
 
 
-def write_sites_geojson(layer, output_path, label_text_evaluator, id_field=None, field_order=None):
+def write_sites_geojson(layer, output_path, label_text_evaluator, id_field=None,
+                        field_order=None, feature_filter=None):
     """Write `layer`'s features to a WGS84 (EPSG:4326) GeoJSON, adding a
     pre-evaluated 'label_text' attribute to every feature (spec 4.1,
     4.2.1.1). Original attribute names are kept as-is; config.json's
@@ -34,6 +35,11 @@ def write_sites_geojson(layer, output_path, label_text_evaluator, id_field=None,
     written in - the popup just iterates the GeoJSON properties object
     in insertion order, so this is also what decides popup row order.
     None means "every field, in the layer's own order" (unconfigured).
+
+    `feature_filter` (callable(feature) -> bool, from
+    core/style_extractor.py's build_render_filter) drops features QGIS
+    itself doesn't draw - currently those belonging to an unchecked
+    category of a categorized renderer. None means "keep everything".
 
     If `id_field` is None (user didn't map an ID attribute in Tab 1), a
     stable auto-incrementing '_fid' attribute is added so the template's
@@ -73,7 +79,13 @@ def write_sites_geojson(layer, output_path, label_text_evaluator, id_field=None,
 
     source_field_names = field_order
     new_features = []
-    for index, feature in enumerate(layer.getFeatures()):
+    # `index` counts kept features only, so '_fid' stays a dense
+    # 0..n-1 sequence - the template's registries key off it directly.
+    index = -1
+    for feature in layer.getFeatures():
+        if feature_filter is not None and not feature_filter(feature):
+            continue
+        index += 1
         new_feature = QgsFeature(out_fields)
         geom = feature.geometry()
         if geom is not None and not geom.isEmpty():

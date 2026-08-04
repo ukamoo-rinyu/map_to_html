@@ -69,8 +69,15 @@ function createStyledMarker(latlng, style, interactive) {
   // rendered ~2x too large (spec feedback: markers looked oversized).
   var size = style.size || 8;
   var color = style.color || '#4a4a4a';
+  // `opacity` is the FILL opacity (color alpha x symbol opacity x layer
+  // opacity, multiplied out in style_extractor.py); the outline carries
+  // its own independent `strokeOpacity` from the stroke color's alpha.
+  // Treating one value as both is what previously made a marker with a
+  // transparent fill also lose its border.
   var opacity = (style.opacity === undefined || style.opacity === null) ? 1 : style.opacity;
   var strokeColor = style.strokeColor || color;
+  var strokeOpacity = (style.strokeOpacity === undefined || style.strokeOpacity === null)
+    ? 1 : style.strokeOpacity;
   var strokeWidth = (style.strokeWidth === undefined || style.strokeWidth === null) ? 1 : style.strokeWidth;
   interactive = interactive !== false;
 
@@ -78,7 +85,9 @@ function createStyledMarker(latlng, style, interactive) {
     var radius = size / 2;
     var visual = L.circleMarker(latlng, {
       radius: radius, color: strokeColor, weight: strokeWidth,
-      fillColor: color, fillOpacity: opacity, opacity: opacity, interactive: false,
+      fillColor: color, fillOpacity: opacity, opacity: strokeOpacity,
+      stroke: strokeWidth > 0 && strokeOpacity > 0,
+      fill: opacity > 0, interactive: false,
     });
     var hitRadius = Math.max(radius + FAG_TOUCH_HIT_PADDING, FAG_MIN_HIT_RADIUS);
     // データ設定 tab's per-layer "ポップアップ表示" checkbox, unchecked -
@@ -116,9 +125,9 @@ function createStyledMarker(latlng, style, interactive) {
     'px;top:' + innerOffset + 'px;width:' + innerSize + 'px;height:' + innerSize +
     'px;background:' + color + ';opacity:' + opacity + '"></span>';
   var html;
-  if (strokeWidth > 0) {
+  if (strokeWidth > 0 && strokeOpacity > 0) {
     var strokeSpan = '<span class="' + shapeClass + '" style="position:absolute;left:0;top:0;width:' +
-      size + 'px;height:' + size + 'px;background:' + strokeColor + ';opacity:' + opacity + '"></span>';
+      size + 'px;height:' + size + 'px;background:' + strokeColor + ';opacity:' + strokeOpacity + '"></span>';
     html = '<span style="position:relative;display:block;width:' + size + 'px;height:' + size +
       'px;">' + strokeSpan + fillSpan + '</span>';
   } else {
@@ -251,19 +260,144 @@ function bindHoverHighlight(interactiveLayer, visualLayer) {
    when there's nothing to show, so callers (layer-control.js's
    bindPopupIfAny) can skip binding a popup at all instead of opening
    an empty box on click. */
-function buildGenericPopupHtml(props) {
+var FAG_IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|bmp)(\?|#|$)/i;
+
+/* One attribute value, rendered. An http(s) value becomes a link (and
+   an image URL an inline thumbnail) when the plugin enabled that -
+   only ever http/https, so a `javascript:` or `data:` value in the
+   source data can't become a clickable link. Everything else is
+   escaped text. */
+function buildPopupValueHtml(value, ctx) {
+  var text = String(value);
+  if (ctx && ctx.linkifyUrls && /^https?:\/\//i.test(text)) {
+    var safe = escapeHtml(text);
+    var anchor = '<a href="' + safe + '" target="_blank" rel="noopener noreferrer">';
+    if (FAG_IMAGE_EXT_RE.test(text)) {
+      return anchor + '<img src="' + safe + '" alt="" loading="lazy"></a>';
+    }
+    return anchor + safe + '</a>';
+  }
+  return escapeHtml(text);
+}
+
+/* Generic "show every attribute" popup. Which attributes reach this
+   function, and in what order, is controlled from the plugin's own
+   per-layer field picker (ui/field_dialog.py, Tab 1's ポップアップ項目
+   設定… button): unchecked fields never get written to the GeoJSON in
+   the first place (geojson_writer.py's field_order), so they can't
+   show up here. 'label_text' and '_fid' are the plugin's own synthetic
+   attributes, not real QGIS data, so they're always excluded
+   regardless of that picker.
+
+   `ctx` (built once per layer by layer-control.js) carries the field
+   aliases, whether empty values are shown, and the Google/GSI link
+   settings. Field labels use QGIS's field ALIAS when the layer defines
+   one - that's the root fix for "列名が長いとレイアウトが崩れる", since
+   an alias is usually the short human name ("R3_SISETU_MEI" ->
+   "施設名").
+
+   Returns '' (not an empty wrapper div) when there's nothing to show,
+   so callers (layer-control.js's bindPopupIfAny) can skip binding a
+   popup at all instead of opening an empty box on click. */
+function buildGenericPopupHtml(props, ctx, latlng) {
   if (!props) return '';
+  ctx = ctx || {};
+  var aliases = ctx.aliases || {};
   var rows = Object.keys(props)
     .filter(function (key) {
-      return key !== 'label_text' && key !== '_fid' &&
-        props[key] !== null && props[key] !== undefined && props[key] !== '';
+      if (key === 'label_text' || key === '_fid') return false;
+      if (ctx.showEmpty) return true;
+      var value = props[key];
+      return value !== null && value !== undefined && value !== '';
     })
     .map(function (key) {
-      return '<div class="fag-popup-row"><span class="fag-popup-label">' + escapeHtml(key) +
-        '</span><span class="fag-popup-value">' + escapeHtml(String(props[key])) + '</span></div>';
+      var value = props[key];
+      if (value === null || value === undefined) value = '';
+      return '<div class="fag-popup-row"><span class="fag-popup-label">' +
+        escapeHtml(aliases[key] || key) + '</span><span class="fag-popup-value">' +
+        buildPopupValueHtml(value, ctx) + '</span></div>';
     }).join('');
-  if (!rows) return '';
-  return '<div class="fag-popup">' + rows + '</div>';
+  var links = buildPopupLinksHtml(props, latlng, ctx);
+  if (!rows && !links) return '';
+  return '<div class="fag-popup">' + rows + links + '</div>';
+}
+
+/* A representative lat/lng for any geometry, for the map links below.
+   Points use their own coordinate; lines/polygons use the mean of
+   their vertices (the spec's "頂点座標の平均で実用上十分" - no turf or
+   other geometry library needed). A polygon whose vertex mean lands
+   outside the shape (a C/crescent outline) would be better served by
+   the bounds center, but that's just as wrong for a long diagonal
+   line, and the vertex mean is the better default of the two for the
+   boundary/zone shapes this actually gets used on. */
+function fagFeatureLatLng(layer) {
+  if (!layer) return null;
+  if (layer.getLatLng) return layer.getLatLng();
+  var latlngs = layer.getLatLngs ? layer.getLatLngs() : null;
+  if (latlngs) {
+    var sumLat = 0;
+    var sumLng = 0;
+    var count = 0;
+    (function walk(list) {
+      for (var i = 0; i < list.length; i++) {
+        if (Array.isArray(list[i])) walk(list[i]);
+        else if (list[i] && list[i].lat !== undefined) {
+          sumLat += list[i].lat; sumLng += list[i].lng; count++;
+        }
+      }
+    })(latlngs);
+    if (count) return L.latLng(sumLat / count, sumLng / count);
+  }
+  if (layer.getBounds) {
+    try { return layer.getBounds().getCenter(); } catch (e) { /* empty geometry */ }
+  }
+  return null;
+}
+
+/* External map links at the foot of the popup (spec item 11). Every
+   entry is opt-in from the plugin's 表示設定 tab, and when the parent
+   switch is off this returns '' so no link markup reaches the output
+   at all - not hidden-by-CSS links still sitting in the DOM.
+   Coordinates are rounded to 6 decimals (~11cm), matching the
+   coordinate precision the GeoJSON itself is written at. */
+function buildPopupLinksHtml(props, latlng, ctx) {
+  var links = ctx && ctx.links;
+  if (!links || !latlng) return '';
+  var lat = latlng.lat.toFixed(6);
+  var lng = latlng.lng.toFixed(6);
+  var query = lat + ',' + lng;
+  var parts = [];
+
+  function add(url, icon, label) {
+    parts.push('<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer"' +
+      ' title="' + escapeHtml(label) + '">' + icon +
+      '<span class="fag-popup-link-label">' + escapeHtml(label) + '</span></a>');
+  }
+
+  if (links.googleMaps) {
+    add('https://www.google.com/maps/search/?api=1&query=' + query, '🗺', 'Googleマップ');
+  }
+  if (links.streetView) {
+    add('https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + query, '📷', 'ストリートビュー');
+  }
+  if (links.directions) {
+    add('https://www.google.com/maps/dir/?api=1&destination=' + query, '🚗', 'ここへの経路');
+  }
+  if (links.nameSearch && links.nameField) {
+    var name = props ? props[links.nameField] : null;
+    if (name !== null && name !== undefined && name !== '') {
+      // encodeURIComponent, not just HTML-escaping: a facility name with
+      // a space, "&" or Japanese text would otherwise truncate or break
+      // the query string.
+      add('https://www.google.com/search?q=' + encodeURIComponent(String(name)), '🔍', '名称で検索');
+    }
+  }
+  if (links.gsi) {
+    add('https://maps.gsi.go.jp/#17/' + lat + '/' + lng + '/', '🗾', '地理院地図');
+  }
+
+  if (!parts.length) return '';
+  return '<div class="fag-popup-links">' + parts.join('') + '</div>';
 }
 
 function escapeHtml(str) {

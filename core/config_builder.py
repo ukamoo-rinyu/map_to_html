@@ -52,6 +52,15 @@ def build_config(settings):
             'featureTableEnabled': bool(display.get('featureTableEnabled', True)),
             'popupTrigger': display.get('popupTrigger') or 'click',
             'attribution': display.get('attribution') or '',
+            # Popup presentation (spec item 7). popupLinks is None when
+            # the parent "Googleマップリンクを表示する" checkbox is off,
+            # so no link markup is generated in the output at all.
+            'popupShowEmpty': bool(display.get('popupShowEmpty', False)),
+            'popupLinkifyUrls': bool(display.get('popupLinkifyUrls', True)),
+            'popupLinks': display.get('popupLinks') or None,
+            # Scale bar (spec item 1) - omitted entirely rather than
+            # emitted as false, so the template can skip the control.
+            'scaleBar': display.get('scaleBar') or None,
         },
         'theme': {
             'titleColor': theme.get('title_color'),
@@ -66,6 +75,11 @@ def build_config(settings):
                 'showPopup': bool(layer.get('showPopup', True)),
                 'geojsonKey': layer['id'],
                 'groupPath': list(layer.get('groupPath') or []),
+                # {field_name: QGIS alias} for fields whose alias differs
+                # from the raw name - the popup shows the alias, which is
+                # the root fix for unreadably long column names (spec
+                # item 7-4). Omitted when the layer sets no aliases.
+                'fieldAliases': dict(layer.get('fieldAliases') or {}),
             }
             for layer in settings.get('layers', [])
         ],

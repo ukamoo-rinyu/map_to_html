@@ -3,6 +3,30 @@
 from qgis.core import QgsProject, QgsVectorLayer, QgsRasterLayer, QgsLayerTreeNode
 
 
+def field_aliases(layer):
+    """{field_name: display_name} for fields whose QGIS alias differs
+    from the raw field name (spec item 7-4).
+
+    `attributeDisplayName` returns the alias when one is set and the
+    plain field name otherwise, so comparing the two is what tells the
+    difference - only genuine aliases are exported, keeping config.js
+    free of an identity mapping for every field of every layer.
+    """
+    aliases = {}
+    try:
+        fields = layer.fields()
+    except AttributeError:
+        return aliases
+    for index, field in enumerate(fields):
+        try:
+            display = layer.attributeDisplayName(index)
+        except Exception:
+            continue
+        if display and display != field.name():
+            aliases[field.name()] = display
+    return aliases
+
+
 def _walk_layers(node, path, results):
     for child in node.children():
         if child.nodeType() == QgsLayerTreeNode.NodeGroup:

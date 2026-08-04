@@ -38,7 +38,7 @@ function applyTheme(theme) {
 
   FAG.map = initMap(config);
   applyDisplaySettings(FAG.map, layersData, config.display);
-  initLayerControl(FAG.map, config.layers, layersData, layersStyleData, config.display.popupTrigger);
+  initLayerControl(FAG.map, config.layers, layersData, layersStyleData, config.display);
   initLabelLayer(FAG.map);
   initLabelClickPopup(FAG.map);
   // Both read FAG_FEATURES_BY_LAYER, populated by initLayerControl

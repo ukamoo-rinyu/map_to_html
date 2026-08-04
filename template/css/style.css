@@ -189,10 +189,30 @@ html, body {
 .fag-layer-item {
   display: flex;
   align-items: center;
+  /* A categorized layer appends a category sublist as a third child;
+     wrapping lets it drop to its own full-width line under the layer
+     name instead of being squeezed in beside it. */
+  flex-wrap: wrap;
   gap: 6px;
   padding: 3px 0;
 }
 .fag-layer-item label { cursor: pointer; }
+
+/* ---- Per-category legend rows (spec item 3) ---- */
+.fag-legend-categories {
+  flex: 0 0 100%;
+  list-style: none;
+  margin: 2px 0 2px 20px;
+  padding: 0;
+}
+.fag-legend-categories li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 0;
+  font-size: 12px;
+  color: var(--muted-color);
+}
 
 /* ---- Group nodes (spec feedback: mirror QGIS's group hierarchy) ---- */
 .fag-layer-group { display: block; padding: 3px 0; }
@@ -248,11 +268,72 @@ html, body {
 }
 
 /* ---- Popup content ---- */
-.fag-popup { font-size: 13px; max-width: 260px; max-height: 260px; overflow-y: auto; }
+/* Stacked (label above value), NOT a 2-column table: with a 2-column
+   layout a long column name either squeezed the value column down to a
+   few characters or forced the popup absurdly wide (spec item 7-1).
+   Stacked, the field name's length stops mattering entirely. */
+.fag-popup {
+  font-size: 13px;
+  max-width: 320px;
+  max-height: 400px;
+  overflow-y: auto;
+  /* Long unbroken tokens (URLs, codes, romanized addresses) would
+     otherwise push the popup past max-width instead of wrapping. */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
 .fag-popup-title { font-weight: 700; margin-bottom: 6px; }
-.fag-popup-row { display: flex; gap: 6px; padding: 2px 0; }
-.fag-popup-label { color: var(--muted-color); flex: 0 0 auto; }
-.fag-popup-value { color: var(--text-color); }
+.fag-popup-row { display: block; padding: 3px 0; }
+.fag-popup-row + .fag-popup-row { border-top: 1px solid var(--border-color, #e5e5e5); }
+.fag-popup-label {
+  display: block;
+  color: var(--muted-color);
+  font-size: 11px;
+  line-height: 1.3;
+}
+.fag-popup-value {
+  display: block;
+  color: var(--text-color);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.fag-popup-value img {
+  max-width: 100%;
+  height: auto;
+  margin-top: 2px;
+  border-radius: 3px;
+}
+
+/* ---- Map/Street View links at the foot of a popup (spec item 11) ----
+   Icons in one row rather than four stacked text links: the popup is
+   narrow, and four full-width labels dominated the actual attribute
+   content. `title` carries the explanation on hover. */
+.fag-popup-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-color, #e5e5e5);
+}
+.fag-popup-links a {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-size: 15px;
+  line-height: 1.1;
+  text-decoration: none;
+  color: var(--text-color);
+}
+.fag-popup-links a:hover { opacity: 0.7; }
+/* Hover doesn't exist on a phone, so the icon keeps a small caption
+   underneath instead of relying on `title` alone. */
+.fag-popup-links .fag-popup-link-label {
+  font-size: 9px;
+  color: var(--muted-color);
+  white-space: nowrap;
+}
 
 /* ---- Search panel (v0.3.0 task 3-1) - lives inside #app-header next
    to the title (search.js does no positioning of its own; this is
