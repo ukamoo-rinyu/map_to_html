@@ -5,6 +5,58 @@
 
 ---
 
+## 2026-08-06: v0.4.1（最大ズームでタイルが消える不具合＋Bandit指摘）
+
+**担当**: Claude Code（Opus）
+
+v0.4.0 をplugins.qgis.orgに上げたところ **Banditのセキュリティチェックで
+ブロック**された。あわせてユーザーから「最大ズームにすると単色地図や
+Google航空写真が表示されなくなる」との報告。
+
+### 1. 最大ズームでタイルレイヤーが消える（実バグ）
+
+**原因**: `layer-control.js` のタイル分岐が `maxZoom: style.tile.maxNativeZoom`
+としていた。Leafletのこの2つは意味がまったく違う:
+
+| オプション | 意味 |
+|---|---|
+| `maxZoom` | **このズームを超えるとレイヤーが表示されなくなる** |
+| `maxNativeZoom` | 実タイルが存在する最深ズーム。これを超えるとLeafletが拡大表示する |
+
+QGISのXYZソースの `zmin`/`zmax` は「タイルが存在する範囲」なので
+**Native側にしか入れてはいけない**。`maxZoom` に入れると、そのズームを
+超えた瞬間にレイヤーごと消える（＝拡大表示にならない）。
+
+**修正**: `minNativeZoom`/`maxNativeZoom` にソースのzmin/zmaxを入れ、
+`minZoom`/`maxZoom` は地図自身の範囲（`map.getMinZoom()`/`getMaxZoom()`）に
+合わせる。同じ問題が `map-core.js` の組み込みベースマップにもあった
+（`Object.assign({maxZoom:...}, basemap.options)` の順序で
+`basemap.options` 側が `maxZoom` を上書きできてしまう状態）ので、
+順序を逆にして地図側の値が必ず勝つようにし、CARTO(20)/OSM(19)にも
+`maxNativeZoom` を明示した。
+
+**検証**: zmax18のXYZレイヤー＋最大ズーム21の地図で実測。
+修正後は z19/20/21 でもタイルがDOMに存在（拡大表示）。同じレイヤーを
+**旧設定（maxZoom:18）で作り直すと z21 でDOM上のタイルが0枚**になることも
+確認し、原因が確定した。
+
+### 2. Bandit指摘 2件
+
+- `core/layer_utils.py` の `field_aliases`: `except Exception: continue`（B112）
+- `dialog.py` の `_resize_to_fit_screen`: `except Exception: pass`（B110）
+
+どちらも**try/exceptをやめて明示的なチェックに置き換えた**（`hasattr(layer,
+'fields')` / `if screen is not None`）。抑制コメント（`# nosec`）は使っていない。
+本当に握りつぶしていたのは「ラスターレイヤーにfieldsが無い」「ヘッドレス環境で
+primaryScreen()がNone」という**事前に判定できる条件**だけだったので、
+例外で受けるより明示チェックの方が正しい。
+
+補足: 他の `except ValueError: pass` 等（`tile_layer.py`）は型付き例外なので
+BanditのB110/B112は既定で検出しない（`check_typed_exception` が既定False）。
+`python -m bandit -r . -x ./template` で **No issues identified** を確認済み。
+
+---
+
 ## 2026-08-05: v0.4.0 第1弾（指示書の優先度A/B項目）
 
 **ブランチ**: `feature/v0.4.0-fidelity-ux`（`main`から分岐、未マージ・未プッシュ）

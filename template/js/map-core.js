@@ -1,13 +1,19 @@
-/* Basemap tile sources the user can pick on the 表示設定 tab. GSI
-   (国土地理院) tiles only go up to z18, so their layer definition caps
-   maxZoom there even if the user set a higher global max - Leaflet
-   still lets you zoom further, it just upscales the last tile. */
+/* Basemap tile sources the user can pick on the 表示設定 tab.
+
+   `maxNativeZoom` is the deepest zoom each provider actually serves
+   tiles for. It is NOT the same as Leaflet's `maxZoom`, which is the
+   zoom past which a tile layer stops being displayed at all - setting
+   that to the provider's depth makes the basemap disappear when the
+   user zooms in further, instead of staying visible as upscaled tiles.
+   initMap below always takes maxZoom from the map's own limit for
+   exactly that reason. */
 var BASEMAP_DEFS = {
   carto_light: {
     url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
     options: {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: 'abcd',
+      maxNativeZoom: 20,
     },
   },
   osm: {
@@ -15,6 +21,7 @@ var BASEMAP_DEFS = {
     options: {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       subdomains: 'abc',
+      maxNativeZoom: 19,
     },
   },
   gsi_pale: {
@@ -67,9 +74,16 @@ function initMap(config) {
   // itself - so when disabled, no tile layer is created here at all.
   if (display.basemapEnabled !== false) {
     var basemap = BASEMAP_DEFS[display.basemap] || BASEMAP_DEFS.carto_light;
-    L.tileLayer(basemap.url, Object.assign({
-      maxZoom: display.maxZoom || 19,
-    }, basemap.options)).addTo(map);
+    // maxZoom is applied AFTER the basemap's own options, not before -
+    // spreading the definition last let it clamp the display limit
+    // below the map's, which is the same "basemap disappears when you
+    // zoom all the way in" failure the XYZ layers had. The provider's
+    // real tile depth is expressed as maxNativeZoom instead, so the
+    // deepest tiles are upscaled rather than the layer being dropped.
+    L.tileLayer(basemap.url, Object.assign({}, basemap.options, {
+      minZoom: map.getMinZoom(),
+      maxZoom: map.getMaxZoom(),
+    })).addTo(map);
   }
 
   // Appended, not replacing the basemap's own attribution() above -

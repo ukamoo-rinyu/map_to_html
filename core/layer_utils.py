@@ -70,15 +70,13 @@ def field_aliases(layer):
     free of an identity mapping for every field of every layer.
     """
     aliases = {}
-    try:
-        fields = layer.fields()
-    except AttributeError:
+    # A raster/tile layer has no fields at all, which is the only case
+    # this needs to tolerate - checked explicitly rather than caught,
+    # so a genuine failure inside the loop below isn't swallowed too.
+    if not hasattr(layer, 'fields'):
         return aliases
-    for index, field in enumerate(fields):
-        try:
-            display = layer.attributeDisplayName(index)
-        except Exception:
-            continue
+    for index, field in enumerate(layer.fields()):
+        display = layer.attributeDisplayName(index)
         if display and display != field.name():
             aliases[field.name()] = display
     return aliases

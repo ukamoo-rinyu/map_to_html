@@ -2,13 +2,16 @@
 name=Map to HTML
 qgisMinimumVersion=3.16
 description=Publish any number of QGIS layers as a standalone Leaflet/HTML/JS web map, each keeping its own symbology and labels.
-version=0.4.0
+version=0.4.1
 author=rinyu
 email=ukamoo@gmail.com
 
 about=Pick any number of layers from the current QGIS project and export a self-contained web map (HTML + per-layer GeoJSON/style JSON) that runs in any browser without a server, qgis2web-style. Each layer's symbology (marker color/size/shape, line, fill and hatch patterns, transparency, labels) is extracted from QGIS and carried over as-is, with a toggle panel to show/hide layers, a cross-layer text search bar, a sortable per-layer attribute table, and feature selection with CSV/GeoJSON export.
 
-changelog=0.4.0
+changelog=0.4.1
+      - Fixed: basemaps and XYZ tile layers vanished at the deepest zoom levels. A tile layer's maxZoom is the zoom past which it stops being displayed, not the depth real tiles exist for - the latter is maxNativeZoom, and using the source's tile depth as maxZoom dropped the layer entirely instead of upscaling its deepest tiles
+      - Replaced two broad try/except blocks with explicit checks, so failures are not silently swallowed (flagged by the plugin repository's security scan)
+    0.4.0
       - Polygon and line transparency now matches QGIS: the fill colour's alpha, the symbol's opacity and the layer's opacity are combined, and fill and outline keep independent transparency instead of sharing one value
       - Dashed, dotted and dash-dot outlines are reproduced from the Qt pen style (and custom dash patterns), rather than every variant becoming one generic dash
       - Hatch fills: QGIS's diagonal/horizontal/vertical/cross and stipple fill styles, plus line-pattern fills with their own angle, spacing, width and colour, are drawn as SVG patterns and shown in the legend. Unsupported fills (point pattern, SVG, raster) fall back to a solid fill and are reported after export

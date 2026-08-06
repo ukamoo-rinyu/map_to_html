@@ -50,12 +50,14 @@ class FacilityAppGeneratorDialog(QDialog):
         the desktop can't be shrunk back on Windows once its title bar
         is off-screen, which stranded the 生成/閉じる buttons out of
         reach as this dialog's settings grew."""
-        try:
-            available = QApplication.primaryScreen().availableGeometry()
+        # primaryScreen() can be None on a headless/offscreen Qt
+        # platform - checked explicitly rather than wrapped in a
+        # catch-all, so a real failure here isn't silently discarded.
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            available = screen.availableGeometry()
             width = min(width, available.width() - 60)
             height = min(height, available.height() - 80)
-        except Exception:
-            pass
         self.resize(max(width, 480), max(height, 360))
 
     def _build_ui(self):

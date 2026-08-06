@@ -683,10 +683,21 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
     // QGIS transparency or the plugin's per-layer override - see
     // core/tile_layer.py::extract_tile_style.
     var tileOpacity = (style.tile.opacity === undefined || style.tile.opacity === null) ? 1 : style.tile.opacity;
+    // Leaflet's two zoom limits on a tile layer mean very different
+    // things, and conflating them is what made a basemap VANISH at the
+    // deepest zooms instead of just getting blurry:
+    //   maxZoom       - the layer stops being DISPLAYED beyond this
+    //   maxNativeZoom - the deepest zoom real tiles exist for; beyond
+    //                   it Leaflet upscales those tiles
+    // The QGIS XYZ source's zmin/zmax describe which tiles EXIST, so
+    // they belong on the *Native* options only. maxZoom follows the
+    // map's own limit so the layer is never hidden inside the zoom
+    // range the map itself allows.
     return L.tileLayer(style.tile.url, {
-      minZoom: style.tile.minZoom,
-      maxZoom: style.tile.maxNativeZoom,
+      minNativeZoom: style.tile.minZoom,
       maxNativeZoom: style.tile.maxNativeZoom,
+      minZoom: map ? map.getMinZoom() : undefined,
+      maxZoom: map ? map.getMaxZoom() : undefined,
       opacity: tileOpacity,
     });
   }
