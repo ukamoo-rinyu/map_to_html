@@ -18,6 +18,28 @@ var FAG_TABLE_ROW_HEIGHT = 30;
 var FAG_TABLE_MIN_COL_WIDTH = 48;
 var FAG_TABLE_MAX_AUTO_COL_WIDTH = 320;
 
+// Column auto-fit needs real pixel text width, not a per-character
+// estimate - a fixed px/char guess (the original approach) is tuned for
+// Latin glyphs and badly undercounts full-width CJK text, so a column
+// like "第二種住居地域" came out narrower than its own rendered text and
+// spilled into the row below. ctx.measureText gives the actual width
+// for whatever font is really in effect (same technique label-layer.js
+// uses for its own text sizing). Fonts are resolved lazily from the
+// live DOM the first time a layer loads, not hardcoded, so a theme's
+// custom font_family (main.js::applyTheme) is measured correctly too.
+var fagTableMeasureCtx = document.createElement('canvas').getContext('2d');
+var fagTableNormalFont = null;
+var fagTableBoldFont = null;
+function fagTableTextWidth(text, bold) {
+  if (!fagTableNormalFont) {
+    var cs = getComputedStyle(document.getElementById('feature-table-scroll') || document.body);
+    fagTableNormalFont = cs.fontSize + ' ' + cs.fontFamily;
+    fagTableBoldFont = '700 ' + cs.fontSize + ' ' + cs.fontFamily;
+  }
+  fagTableMeasureCtx.font = bold ? fagTableBoldFont : fagTableNormalFont;
+  return fagTableMeasureCtx.measureText(text).width;
+}
+
 function initFeatureTable(config, map) {
   if (!config.display || !config.display.featureTableEnabled) return;
 
@@ -109,20 +131,22 @@ function initFeatureTable(config, map) {
     // Auto-fit from both the column name AND its longest value (capped
     // at FAG_TABLE_MAX_AUTO_COL_WIDTH - a single outlier value shouldn't
     // blow up the whole column; the user can still drag it wider via
-    // the resize handle). Scanning every row's string length is cheap
-    // even at 1,000+ rows (just .length checks, no rendering), unlike
-    // actually laying out that many rows up front. A little extra room
-    // over the plain-cell formula so the sort arrow (header only)
-    // doesn't crowd the column name.
+    // the resize handle). Measuring every row's real text width is
+    // still cheap at 1,000+ rows (measureText is pure math, no
+    // rendering), unlike actually laying out that many rows up front.
+    // The header is measured in bold since that's how it actually
+    // renders (.fag-table-row-head), and a little extra room over the
+    // plain-cell formula so the sort arrow (header only) doesn't crowd
+    // the column name.
     state.colWidths = columns.map(function (col) {
-      var maxLen = col.length;
+      var maxWidth = fagTableTextWidth(col, true);
       for (var i = 0; i < rows.length; i++) {
         var value = (rows[i].feature.properties || {})[col];
         if (value === undefined || value === null) continue;
-        var len = String(value).length;
-        if (len > maxLen) maxLen = len;
+        var width = fagTableTextWidth(String(value), false);
+        if (width > maxWidth) maxWidth = width;
       }
-      return Math.min(FAG_TABLE_MAX_AUTO_COL_WIDTH, Math.max(FAG_TABLE_MIN_COL_WIDTH + 42, maxLen * 9 + 34));
+      return Math.min(FAG_TABLE_MAX_AUTO_COL_WIDTH, Math.max(FAG_TABLE_MIN_COL_WIDTH + 42, maxWidth + 34));
     });
 
     countEl.textContent = rows.length + ' item' + (rows.length === 1 ? '' : 's');

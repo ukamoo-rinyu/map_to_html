@@ -604,6 +604,24 @@ html, body {
   display: flex;
   align-items: center;
   height: 30px;
+  /* A block-level flex container's `auto` width fills its containing
+     block (#feature-table-scroll's ~360px content box) - it does NOT
+     grow to fit non-shrinking children (every .fag-table-cell is
+     `flex: 0 0 auto`, a fixed px basis) that sum wider than that, once
+     there are enough columns. Those extra columns still PAINT past the
+     row's own box edge (default overflow:visible), which is how the
+     horizontal scrollbar ever appeared at all - but the header row's
+     opaque background (.fag-table-row-head, below) only fills its OWN
+     box, not the painted overflow. Scroll right past the box's own
+     360px and the sticky header goes transparent over whatever data
+     row is scrolled underneath it - exactly the header/row overlap
+     this was reported as. Forcing the row's actual box to grow to fit
+     every cell (falling back to the panel's full width when content is
+     narrower) makes the background cover the whole row regardless of
+     horizontal scroll position - for data rows this incidentally fixes
+     the same gap in hover/.fag-row-selected highlighting past 360px. */
+  width: max-content;
+  min-width: 100%;
   box-sizing: border-box;
 }
 .fag-table-row-head {
@@ -640,6 +658,7 @@ html, body {
 }
 .fag-table-cell-head:hover { color: var(--text-color); }
 .fag-table-head-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -680,5 +699,27 @@ html, body {
   #app.responsive #search-panel {
     flex: 1 1 100%;
     margin-left: 0;
+  }
+  /* #feature-table-panel's own max-height (calc(100vh - 76px), see
+     above) is fine on desktop where the panel is only 360px wide - a
+     corner widget that happens to also grow tall. On mobile it's also
+     nearly full WIDTH (max-width: calc(100vw - 20px)), so "nearly full
+     height" + "nearly full width" together leave almost no map visible
+     once the table is opened. Capping height to ~55% keeps a usable
+     strip of map (and the layer panel/zoom controls above it) visible
+     alongside the list, closer to a normal mobile map+list split. */
+  #app.responsive #feature-table-panel {
+    max-height: 55vh;
+  }
+  /* #selection-bar is deliberately always visible even while the table
+     itself is collapsed (see the comment above it) - reachable at a
+     glance on desktop's small 360px-wide corner panel. On mobile the
+     panel is nearly full-width, so that same always-on bar (6 buttons
+     across 2 rows) permanently eats a real chunk of screen height for
+     a feature most visitors won't touch before ever opening the list.
+     Fold it into the same collapsed state as the table on mobile only
+     - desktop keeps the original "always reachable" behavior. */
+  #app.responsive #feature-table-panel.fag-collapsed #selection-bar {
+    display: none;
   }
 }
