@@ -359,6 +359,49 @@ def _extract_line_style(symbol, meters_per_map_unit=None, layer_opacity=1.0):
     return style
 
 
+def _extract_fill_stroke(symbol_layer, style, meters_per_map_unit, opacity_scale):
+    """Outline color/width/style for a fill symbol layer that exposes
+    QgsFillSymbolLayer's own strokeColor()/strokeWidth()/strokeStyle()
+    (QgsSimpleFillSymbolLayer and friends). Mutates `style` in place.
+
+    Shared by every fill-layer branch of _extract_fill_style() so a
+    plain "Simple Fill" outline isn't silently left at DEFAULT_FILL's
+    placeholder gray.
+    """
+    try:
+        stroke_color = symbol_layer.strokeColor()
+        if stroke_color is not None:
+            style['strokeColor'] = stroke_color.name()
+            style['strokeOpacity'] = round(
+                _clamp(_color_alpha(stroke_color) * opacity_scale, 0.0, 1.0), 3
+            )
+    except Exception as exc:
+        _log_extract_warning('fill stroke color', exc)
+    try:
+        width_unit = (
+            symbol_layer.strokeWidthUnit()
+            if hasattr(symbol_layer, 'strokeWidthUnit') else QgsUnitTypes.RenderMillimeters
+        )
+        width_value = float(symbol_layer.strokeWidth())
+        width_meters = _width_in_meters(width_value, width_unit, meters_per_map_unit)
+        if width_meters is not None:
+            style['strokeWidthMeters'] = round(width_meters, 2)
+        else:
+            width_px = _to_px(width_value, width_unit, DEFAULT_FILL['strokeWidth'])
+            style['strokeWidth'] = round(_clamp(width_px, 0.5, 20), 2)
+    except Exception as exc:
+        _log_extract_warning('fill stroke width', exc)
+    try:
+        stroke_style = int(symbol_layer.strokeStyle())
+        if stroke_style == 0:  # Qt.NoPen == 0
+            style['hasStroke'] = False
+            style['strokeWidth'] = 0
+        else:
+            style['dashArray'] = _dash_array_for_pen(stroke_style, style.get('strokeWidth'))
+    except Exception as exc:
+        _log_extract_warning('fill stroke style', exc)
+
+
 def _extract_fill_style(symbol, meters_per_map_unit=None, layer_opacity=1.0,
                         fill_opacity_override=None, warnings=None, layer_name=''):
     """Reference-layer polygon symbology (spec 4.2.1 'ポリゴン').
@@ -440,43 +483,13 @@ def _extract_fill_style(symbol, meters_per_map_unit=None, layer_opacity=1.0,
         pattern = _extract_fill_pattern(symbol_layer, opacity_scale, warnings_list, layer_name)
         if pattern:
             style['fillPattern'] = pattern
+        _extract_fill_stroke(symbol_layer, style, meters_per_map_unit, opacity_scale)
     elif symbol_layer is not None and type(symbol_layer).__name__ in (
             'QgsPointPatternFillSymbolLayer', 'QgsSVGFillSymbolLayer',
             'QgsRasterFillSymbolLayer', 'QgsRandomMarkerFillSymbolLayer'):
         # Out of scope, and the fallback must not be silent (spec 10-C).
         _extract_fill_pattern(symbol_layer, opacity_scale, warnings_list, layer_name)
-        try:
-            stroke_color = symbol_layer.strokeColor()
-            if stroke_color is not None:
-                style['strokeColor'] = stroke_color.name()
-                style['strokeOpacity'] = round(
-                    _clamp(_color_alpha(stroke_color) * opacity_scale, 0.0, 1.0), 3
-                )
-        except Exception as exc:
-            _log_extract_warning('fill stroke color', exc)
-        try:
-            width_unit = (
-                symbol_layer.strokeWidthUnit()
-                if hasattr(symbol_layer, 'strokeWidthUnit') else QgsUnitTypes.RenderMillimeters
-            )
-            width_value = float(symbol_layer.strokeWidth())
-            width_meters = _width_in_meters(width_value, width_unit, meters_per_map_unit)
-            if width_meters is not None:
-                style['strokeWidthMeters'] = round(width_meters, 2)
-            else:
-                width_px = _to_px(width_value, width_unit, DEFAULT_FILL['strokeWidth'])
-                style['strokeWidth'] = round(_clamp(width_px, 0.5, 20), 2)
-        except Exception as exc:
-            _log_extract_warning('fill stroke width', exc)
-        try:
-            stroke_style = int(symbol_layer.strokeStyle())
-            if stroke_style == 0:  # Qt.NoPen == 0
-                style['hasStroke'] = False
-                style['strokeWidth'] = 0
-            else:
-                style['dashArray'] = _dash_array_for_pen(stroke_style, style.get('strokeWidth'))
-        except Exception as exc:
-            _log_extract_warning('fill stroke style', exc)
+        _extract_fill_stroke(symbol_layer, style, meters_per_map_unit, opacity_scale)
 
     elif symbol_layer is not None and hasattr(symbol_layer, 'color'):
         # Outline-only polygon: the sole symbol layer is a line layer.
@@ -520,7 +533,7 @@ def _extract_fill_style(symbol, meters_per_map_unit=None, layer_opacity=1.0,
         except Exception as exc:
             _log_extract_warning('outline dash style', exc)
 
-    # 表示設定 tab's "塗りの透過率を上書きする" - deliberately applied
+    # 表示設定 tab's "塗りの不透明度を上書きする" - deliberately applied
     # last and only to the fill, so the user's one slider can make every
     # overlapping polygon see-through without also washing out the
     # outlines that make each shape readable. A no-fill polygon
@@ -832,7 +845,7 @@ def extract_style(layer, fill_opacity_override=None, warnings=None):
     so export still succeeds rather than failing outright (spec 4.2.2,
     deferred to a later phase).
 
-    `fill_opacity_override` (0.0-1.0, from 表示設定 tab's "塗りの透過率
+    `fill_opacity_override` (0.0-1.0, from 表示設定 tab's "塗りの不透明度
     を上書きする") replaces every extracted fill opacity with one flat
     value instead of using what QGIS says.
 

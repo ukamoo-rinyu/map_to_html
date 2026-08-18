@@ -171,10 +171,10 @@ class DisplayTab(QWidget):
         root.addWidget(grp_scale)
 
         # ---- Fill opacity override (spec item 2) ----------------------
-        grp_opacity = QGroupBox(self.tr('透過率'))
+        grp_opacity = QGroupBox(self.tr('不透明度'))
         lay_opacity = QVBoxLayout(grp_opacity)
         self.chk_opacity_override = QCheckBox(
-            self.tr('塗りの透過率を上書きする（QGISの設定を無視して一律適用）')
+            self.tr('塗りの不透明度を上書きする（QGISの設定を無視して一律適用）')
         )
         self.chk_opacity_override.toggled.connect(self._update_opacity_enabled)
         lay_opacity.addWidget(self.chk_opacity_override)
@@ -192,7 +192,7 @@ class DisplayTab(QWidget):
         row_opacity.addWidget(self.lb_opacity)
         lay_opacity.addLayout(row_opacity)
         lay_opacity.addWidget(QLabel(self.tr(
-            'ポリゴンの塗りとマーカーの塗りに適用されます。枠線の色・透過率は変更しません。'
+            'ポリゴンの塗りとマーカーの塗りに適用されます。枠線の色・不透明度は変更しません。'
         )))
         self._update_opacity_enabled()
         root.addWidget(grp_opacity)

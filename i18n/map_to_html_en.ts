@@ -55,7 +55,7 @@
     </message>
     <message>
         <location filename="../ui/data_tab.py" line="83" />
-        <source>透過率</source>
+        <source>不透明度</source>
         <translation>Opacity</translation>
     </message>
     <message>
@@ -90,7 +90,7 @@
     </message>
     <message>
         <location filename="../ui/data_tab.py" line="293" />
-        <source>背景地図・ラスターレイヤーの透過率です。新しく追加したレイヤーは、直前に追加したラスターレイヤーの透過率を引き継ぎます（未追加ならQGIS側の設定を引き継ぎます）。</source>
+        <source>背景地図・ラスターレイヤーの不透明度です。新しく追加したレイヤーは、直前に追加したラスターレイヤーの不透明度を引き継ぎます（未追加ならQGIS側の設定を引き継ぎます）。</source>
         <translation>Opacity of the basemap/raster layer. A newly added layer inherits the opacity of the most recently added raster layer (or its own QGIS opacity, if none has been added yet).</translation>
     </message>
     <message>

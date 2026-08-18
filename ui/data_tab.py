@@ -80,7 +80,7 @@ class DataTab(QWidget):
         btn_reload.setToolTip(self.tr(
             'この画面を開いたままQGIS側でレイヤーを追加・削除したり、名前や属性項目を\n'
             '変更した場合に押してください。この表で設定した内容（表示順・ラベル・\n'
-            'ポップアップ項目・透過率・チェック状態）はそのまま保持されます。\n'
+            'ポップアップ項目・不透明度・チェック状態）はそのまま保持されます。\n'
             '※シンボル（色・線幅など）と凡例はHTML生成時に毎回QGISから読み直すため、\n'
             '　色を変えただけならこのボタンを押さなくても反映されます。'
         ))
@@ -97,7 +97,7 @@ class DataTab(QWidget):
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels([
             self.tr('グループ'), self.tr('レイヤー名（地図上の表示ラベル）'),
-            self.tr('種別'), self.tr('透過率'), self.tr('最小ズーム'),
+            self.tr('種別'), self.tr('不透明度'), self.tr('最小ズーム'),
             self.tr('ポップアップ項目'),
             self.tr('ポップアップ表示'), self.tr('初期表示ON'),
         ])
@@ -290,18 +290,7 @@ class DataTab(QWidget):
 
         if isinstance(layer, QgsRasterLayer):
             initial_config = None
-            # v0.3.0 task 2-3: default a newly-added raster/tile layer's
-            # opacity to whatever the most-recently-added raster layer
-            # in this table is already set to ("継承" - inherit the
-            # transparency already configured on an existing layer),
-            # so publishing several translucent overlays in a row
-            # doesn't mean re-picking the same value each time. Falls
-            # back to this layer's own native QGIS opacity for the
-            # first raster layer added in a session - either way, the
-            # per-row spinbox in _append_row lets it be changed
-            # individually afterward ("個別に設定できるように").
-            inherited_opacity = self._last_raster_opacity()
-            opacity = inherited_opacity if inherited_opacity is not None else tile_layer.read_native_opacity(layer)
+            opacity = tile_layer.read_native_opacity(layer)
         else:
             saved_config = field_config.load_field_config(layer)
             if saved_config is not None:
@@ -331,12 +320,6 @@ class DataTab(QWidget):
             'opacity': opacity,
         })
         self._rebuild_table()
-
-    def _last_raster_opacity(self):
-        for entry in reversed(self._entries):
-            if entry.get('opacity') is not None:
-                return entry['opacity']
-        return None
 
     def _entry_index_for_row(self, row):
         """Table row `row` (display order, top = front of map) -> the
@@ -391,8 +374,8 @@ class DataTab(QWidget):
             spn_opacity.setSuffix('%')
             spn_opacity.setValue(round((entry.get('opacity') if entry.get('opacity') is not None else 1.0) * 100))
             spn_opacity.setToolTip(self.tr(
-                '背景地図・ラスターレイヤーの透過率です。新しく追加したレイヤーは、直前に追加した'
-                'ラスターレイヤーの透過率を引き継ぎます（未追加ならQGIS側の設定を引き継ぎます）。'
+                '背景地図・ラスターレイヤーの不透明度です。追加時はQGIS側の設定を引き継ぎ、'
+                'ここで個別に変更できます。'
             ))
             spn_opacity.valueChanged.connect(lambda value, e=entry: e.__setitem__('opacity', value / 100.0))
             self.table.setCellWidget(row, COL_OPACITY, self._centered(spn_opacity))
@@ -588,7 +571,7 @@ class DataTab(QWidget):
         (empty for raster layers) is the ordered list of visible field
         names picked via the ポップアップ項目 button, ready for
         geojson_writer.py. `opacity` (0.0-1.0, raster layers only,
-        None for vector) is the per-layer override from the 透過率
+        None for vector) is the per-layer override from the 不透明度
         spinbox (v0.3.0 task 2-3), ready for tile_layer.py."""
         self._sync_labels_from_table()
         result = []
