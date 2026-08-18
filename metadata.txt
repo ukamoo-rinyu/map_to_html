@@ -10,7 +10,7 @@ about=Pick any number of layers from the current QGIS project and export a self-
 
 changelog=0.4.2
       - Fixed: a polygon's outline (stroke) colour, width and line style were never read from a standard Simple Fill symbol layer, so every polygon outline silently exported at a fixed placeholder gray instead of its actual QGIS colour
-      - Wording: the raster/tile layer and fill-opacity settings were labelled "透過率" (transparency rate) in Japanese, backwards from how the slider actually behaves (100% = fully opaque); relabelled to "不透明度" (opacity) to match
+      - Wording: the raster/tile layer and fill-opacity settings were labelled "透過率" (transparency rate) in Japanese, backwards from how the slider actually behaves (its maximum value means fully opaque); relabelled to "不透明度" (opacity) to match
       - Fixed: adding a second or later raster/XYZ tile layer copied the opacity already set on a previously added tile layer instead of reading its own QGIS opacity, so tile layers with genuinely different transparency settings could end up showing the same value
     0.4.1
       - Fixed: basemaps and XYZ tile layers vanished at the deepest zoom levels. A tile layer's maxZoom is the zoom past which it stops being displayed, not the depth real tiles exist for - the latter is maxNativeZoom, and using the source's tile depth as maxZoom dropped the layer entirely instead of upscaling its deepest tiles
