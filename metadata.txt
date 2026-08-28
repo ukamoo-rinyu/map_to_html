@@ -2,13 +2,18 @@
 name=Map to HTML
 qgisMinimumVersion=3.16
 description=Publish any number of QGIS layers as a standalone Leaflet/HTML/JS web map, each keeping its own symbology and labels.
-version=0.4.2
+version=0.5.0
 author=rinyu
 email=ukamoo@gmail.com
 
 about=Pick any number of layers from the current QGIS project and export a self-contained web map (HTML + per-layer GeoJSON/style JSON) that runs in any browser without a server, qgis2web-style. Each layer's symbology (marker color/size/shape, line, fill and hatch patterns, transparency, labels) is extracted from QGIS and carried over as-is, with a toggle panel to show/hide layers, a cross-layer text search bar, a sortable per-layer attribute table, and feature selection with CSV/GeoJSON export.
 
-changelog=0.4.2
+changelog=0.5.0
+      - Fixed: line and polygon layers never showed labels at all, even with labeling enabled in QGIS - labels are now placed at each feature's bounding-box center, matching how point labels already worked
+      - Basemap: OpenStreetMap is now the first/default choice, since CARTO now requires an API key for real traffic (CARTO stays available further down the list); added a 国土地理院 aerial photo option
+      - Zoom now animates smoothly for ordinary single-step zooming instead of jump-cutting between levels; a large multi-level jump still switches instantly, same as before, to avoid the animated-zoom slowdown a big dataset hit previously
+      - Labels no longer stay hidden by overlap-avoidance until zoomed in very close - past a set zoom, every in-view label is shown even if its box overlaps another's
+    0.4.2
       - Fixed: a polygon's outline (stroke) colour, width and line style were never read from a standard Simple Fill symbol layer, so every polygon outline silently exported at a fixed placeholder gray instead of its actual QGIS colour
       - Wording: the raster/tile layer and fill-opacity settings were labelled "透過率" (transparency rate) in Japanese, backwards from how the slider actually behaves (its maximum value means fully opaque); relabelled to "不透明度" (opacity) to match
       - Fixed: adding a second or later raster/XYZ tile layer copied the opacity already set on a previously added tile layer instead of reading its own QGIS opacity, so tile layers with genuinely different transparency settings could end up showing the same value

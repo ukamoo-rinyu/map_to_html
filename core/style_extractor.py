@@ -902,15 +902,19 @@ def extract_style(layer, fill_opacity_override=None, warnings=None):
     # renderer's arbitrary first symbol - is the right fallback.
     if category_fallback:
         default_style = dict(category_fallback)
-    if geometry_type not in (QgsWkbTypes.LineGeometry, QgsWkbTypes.PolygonGeometry):
-        label_style, labels_enabled = _extract_label_style(layer, meters_per_map_unit)
-        if labels_enabled:
-            default_style['label'] = label_style
-            if category_table:
-                # QGIS's simple labeling is layer-level, not per-category,
-                # so every category shares the one label style.
-                for cat_style in category_table.values():
-                    cat_style['label'] = label_style
+    # _extract_label_style itself is geometry-agnostic (spec 4.2.1.1) -
+    # point, line and polygon layers can all have QGIS labeling enabled,
+    # and the web side places a line/polygon label at its feature's
+    # bounding-box center (see buildStyledLayer's line/fill branches in
+    # layer-control.js) rather than anchored to a marker.
+    label_style, labels_enabled = _extract_label_style(layer, meters_per_map_unit)
+    if labels_enabled:
+        default_style['label'] = label_style
+        if category_table:
+            # QGIS's simple labeling is layer-level, not per-category,
+            # so every category shares the one label style.
+            for cat_style in category_table.values():
+                cat_style['label'] = label_style
 
     result = {'defaultStyle': default_style}
     if category_field and category_table:

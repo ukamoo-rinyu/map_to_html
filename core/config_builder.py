@@ -46,7 +46,7 @@ def build_config(settings):
             'initialView': display['initialView'],
             'minZoom': display['minZoom'],
             'maxZoom': display['maxZoom'],
-            'basemap': display.get('basemap') or 'carto_light',
+            'basemap': display.get('basemap') or 'osm',
             'basemapEnabled': bool(display.get('basemapEnabled', True)),
             'searchEnabled': bool(display.get('searchEnabled', True)),
             'featureTableEnabled': bool(display.get('featureTableEnabled', True)),

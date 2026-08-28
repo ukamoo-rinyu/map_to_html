@@ -192,9 +192,20 @@ function redrawLabels(map, canvas, ctx) {
   });
 }
 
+// Past this zoom, every in-view label is drawn even if its box
+// overlaps another's (spec feedback: some labels stayed hidden until
+// zoomed in almost all the way, which read as "this facility has no
+// name" rather than "decluttered"). Fixed at maxZoom-3 rather than a
+// hardcoded absolute level so it scales with whatever zoom range this
+// particular export actually uses.
+function fagLabelForceShowZoom(map) {
+  return Math.max(map.getMinZoom(), map.getMaxZoom() - 3);
+}
+
 function computeLabelPlacements(map, size) {
   var kept = [];
   var keptTestRects = [];
+  var forceAll = map.getZoom() >= fagLabelForceShowZoom(map);
   // Slight bounds padding so a label whose text sticks into the view
   // from a just-offscreen marker still gets drawn.
   var viewBounds = map.getBounds().pad(0.1);
@@ -229,6 +240,8 @@ function computeLabelPlacements(map, size) {
       candidates.push({ dx: dx, dy: 0 }, { dx: -dx, dy: 0 }, { dx: 0, dy: dy });
     }
 
+    var placed = false;
+    var fallbackRect = null;
     for (var i = 0; i < candidates.length; i++) {
       var off = candidates[i];
       var rect = {
@@ -237,6 +250,7 @@ function computeLabelPlacements(map, size) {
       };
 
       if (rect.right < 0 || rect.left > size.x || rect.bottom < 0 || rect.top > size.y) continue;
+      if (!fallbackRect) fallbackRect = rect; // first on-screen candidate, used by forceAll below
 
       var insetX = m.width * FAG_LABEL_COLLISION_INSET_X;
       var insetY = m.height * FAG_LABEL_COLLISION_INSET_Y;
@@ -253,8 +267,15 @@ function computeLabelPlacements(map, size) {
       if (!overlaps) {
         kept.push({ entry: entry, marker: marker, rect: rect });
         keptTestRects.push(test);
+        placed = true;
         break;
       }
+    }
+    // Past fagLabelForceShowZoom every in-view label shows regardless of
+    // overlap - draw it at its best (first on-screen) candidate rect
+    // rather than dropping it just because every candidate collided.
+    if (!placed && forceAll && fallbackRect) {
+      kept.push({ entry: entry, marker: marker, rect: fallbackRect });
     }
   });
 

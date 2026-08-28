@@ -16,11 +16,16 @@ class DisplayTab(QWidget):
         self._build_ui()
 
     def _basemap_options(self):
+        # v0.5.0: OpenStreetMap moved to first/default - CARTO now
+        # requires an API key for real traffic, so it's no longer a
+        # safe zero-config default (kept at the end for anyone who
+        # already has their own CARTO key/plan).
         return [
-            ('carto_light', self.tr('CARTO Light（明るい配色・既定）')),
-            ('osm', self.tr('OpenStreetMap 標準')),
+            ('osm', self.tr('OpenStreetMap 標準（既定）')),
+            ('gsi_photo', self.tr('国土地理院 航空写真')),
             ('gsi_pale', self.tr('国土地理院 淡色地図')),
             ('gsi_standard', self.tr('国土地理院 標準地図')),
+            ('carto_light', self.tr('CARTO Light（明るい配色・要APIキー）')),
         ]
 
     def _build_ui(self):

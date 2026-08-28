@@ -734,6 +734,23 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
     return markerLayer;
   }
 
+  var bindShapeLabel = function (layer, labelText, labelStyle) {
+    // Point labels anchor to a real marker's own getLatLng(); a
+    // line/polygon Leaflet layer has no such single point, so this
+    // patches one on directly (its bounding-box center, a QGIS-like
+    // "centroid" approximation good enough for placement - true
+    // polygon centroid math isn't worth it here) and reuses the exact
+    // same registry/collision/canvas-draw pipeline style-renderer.js
+    // and label-layer.js already built for markers. `layer._map`
+    // (read by computeLabelPlacements to skip a toggled-off layer)
+    // is maintained by Leaflet itself the normal way, since `layer`
+    // really is what gets added to/removed from the map.
+    if (!labelText || !labelStyle) return;
+    var center = layer.getBounds().getCenter();
+    layer.getLatLng = function () { return center; };
+    bindStyledLabel(layer, labelText, { size: 4 }, labelStyle);
+  };
+
   if (style.line) {
     return L.geoJSON(geojson, {
       style: function (feature) {
@@ -766,6 +783,8 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
         if (lineStyle.widthMeters) {
           FAG_MAPUNIT_PATHS.push({ path: layer, meters: lineStyle.widthMeters });
         }
+        var lineLabelStyle = (resolved && resolved.label) || style.label;
+        bindShapeLabel(layer, (feature.properties || {}).label_text, lineLabelStyle);
         if (!interactive) return;
         bindPopupIfAny(layer, feature.properties, popupTrigger, popupCtx);
         if (popupTrigger !== 'none') bindHoverHighlight(layer);
@@ -819,6 +838,8 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
         if (fillStyle.strokeWidthMeters) {
           FAG_MAPUNIT_PATHS.push({ path: layer, meters: fillStyle.strokeWidthMeters });
         }
+        var fillLabelStyle = (resolved && resolved.label) || style.label;
+        bindShapeLabel(layer, (feature.properties || {}).label_text, fillLabelStyle);
         if (!interactive) return;
         bindPopupIfAny(layer, feature.properties, popupTrigger, popupCtx);
         if (popupTrigger !== 'none') bindHoverHighlight(layer);
