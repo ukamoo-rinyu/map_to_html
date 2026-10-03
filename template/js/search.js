@@ -46,6 +46,11 @@ function initSearch(config, map) {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(runSearch, DEBOUNCE_MS);
   });
+  // Re-run an open search when the filter bar changes (filter.js), so
+  // its results never list something the filter just hid.
+  document.addEventListener('fag:filterchange', function () {
+    if (input.value.trim()) runSearch();
+  });
 
   function runSearch() {
     var keyword = input.value.trim().toLowerCase();
@@ -67,6 +72,9 @@ function initSearch(config, map) {
       Object.keys(byFid).forEach(function (fid) {
         var entry = byFid[fid];
         if (!entry.layer._map) return; // layer currently unchecked in #layer-panel
+        // Features the filter bar has hidden aren't on the map, so
+        // they aren't offered as results either (filter.js).
+        if (!fagFeaturePassesFilter(layerConfig.id, entry.feature)) return;
         if (featureMatches(entry.feature.properties, keyword)) {
           matches.push({ layerConfig: layerConfig, entry: entry });
         }
@@ -78,7 +86,7 @@ function initSearch(config, map) {
   function featureMatches(props, keyword) {
     props = props || {};
     for (var key in props) {
-      if (key === 'label_text' || key === '_fid') continue;
+      if (fagIsInternalKey(key)) continue;
       var value = props[key];
       if (value !== undefined && value !== null &&
         String(value).toLowerCase().indexOf(keyword) !== -1) {
@@ -109,7 +117,7 @@ function initSearch(config, map) {
 
   function buildResultItem(match) {
     var props = match.entry.feature.properties || {};
-    var keys = Object.keys(props).filter(function (k) { return k !== 'label_text' && k !== '_fid'; });
+    var keys = Object.keys(props).filter(function (k) { return !fagIsInternalKey(k); });
     var name = props.label_text || (keys.length ? props[keys[0]] : '') || '(no name)';
     var sub = keys
       .filter(function (k) { return String(props[k]) !== String(name); })

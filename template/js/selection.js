@@ -120,7 +120,7 @@ function fagExportFields(rows) {
   var fields = [];
   rows.forEach(function (entry) {
     Object.keys(entry.feature.properties || {}).forEach(function (key) {
-      if (key === '_fid' || key === 'label_text' || seen[key]) return;
+      if (fagIsInternalKey(key) || seen[key]) return;
       seen[key] = true;
       fields.push(key);
     });
@@ -182,7 +182,7 @@ function fagBuildGeoJson(rows, indent) {
   var features = rows.map(function (entry) {
     var props = {};
     Object.keys(entry.feature.properties || {}).forEach(function (key) {
-      if (key === '_fid' || key === 'label_text') return;
+      if (fagIsInternalKey(key)) return;
       props[key] = entry.feature.properties[key];
     });
     return { type: 'Feature', properties: props, geometry: entry.feature.geometry };
@@ -261,6 +261,9 @@ function initSelection(config, map) {
       .map(Number)
       .sort(function (a, b) { return a - b; })
       .filter(function (fid) { return !selectedOnly || fagIsSelected(layerId, fid); })
+      // "CSV (layer)"/"GeoJSON (layer)" export what the filter bar
+      // currently shows, matching the map and the feature table.
+      .filter(function (fid) { return fagFeaturePassesFilter(layerId, byFid[fid].feature); })
       .map(function (fid) { return byFid[fid]; });
   }
 

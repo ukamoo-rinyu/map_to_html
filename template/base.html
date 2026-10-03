@@ -19,6 +19,16 @@
       </div>
     </div>
   </header>
+  <!-- Filter bar (filter.js) - one checklist dropdown per filter field,
+       shown only when the plugin's 表示設定 tab turned it on. -->
+  <div id="filter-bar" class="fag-hidden">
+    <button id="filter-bar-toggle" type="button" aria-expanded="false">Filter ▾</button>
+    <div id="filter-bar-items"></div>
+    <div id="filter-bar-tail">
+      <span id="filter-bar-count"></span>
+      <button id="filter-bar-reset" type="button">Reset</button>
+    </div>
+  </div>
   <div id="app-body">
     <main id="map-pane">
       <div id="map"></div>

@@ -23,7 +23,7 @@ SIMPLIFY_TOLERANCE_DEG = 0.00002
 
 
 def write_sites_geojson(layer, output_path, label_text_evaluator, id_field=None,
-                        field_order=None, feature_filter=None):
+                        field_order=None, feature_filter=None, extra_fields=None):
     """Write `layer`'s features to a WGS84 (EPSG:4326) GeoJSON, adding a
     pre-evaluated 'label_text' attribute to every feature (spec 4.1,
     4.2.1.1). Original attribute names are kept as-is; config.json's
@@ -40,6 +40,13 @@ def write_sites_geojson(layer, output_path, label_text_evaluator, id_field=None,
     core/style_extractor.py's build_render_filter) drops features QGIS
     itself doesn't draw - currently those belonging to an unchecked
     category of a categorized renderer. None means "keep everything".
+
+    `extra_fields` ({source field name: output attribute name}) writes
+    additional attributes under a different name - used for filter
+    fields the user hid from the popup, which the filter bar still
+    needs; they are written as '_flt_<name>' so every attribute list in
+    the template (popup, table, search, export) skips them via
+    fagIsInternalKey.
 
     If `id_field` is None (user didn't map an ID attribute in Tab 1), a
     stable auto-incrementing '_fid' attribute is added so the template's
@@ -63,6 +70,14 @@ def write_sites_geojson(layer, output_path, label_text_evaluator, id_field=None,
         idx = layer_fields.indexFromName(name)
         if idx >= 0:
             out_fields.append(layer_fields.field(idx))
+    extra_fields = {
+        source: target for source, target in (extra_fields or {}).items()
+        if source in all_names
+    }
+    for source, target in extra_fields.items():
+        extra = QgsField(layer_fields.field(layer_fields.indexFromName(source)))
+        extra.setName(target)
+        out_fields.append(extra)
     if out_fields.indexOf('label_text') < 0:
         out_fields.append(QgsField('label_text', QVariant.String))
     needs_auto_id = not id_field
@@ -98,6 +113,8 @@ def write_sites_geojson(layer, output_path, label_text_evaluator, id_field=None,
         new_feature.setGeometry(geom)
         for field_name in source_field_names:
             new_feature[field_name] = feature[field_name]
+        for source, target in extra_fields.items():
+            new_feature[target] = feature[source]
         new_feature['label_text'] = label_text_evaluator(feature)
         if needs_auto_id:
             new_feature[AUTO_ID_FIELD] = index

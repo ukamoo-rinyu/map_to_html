@@ -16,15 +16,16 @@ class DisplayTab(QWidget):
         self._build_ui()
 
     def _basemap_options(self):
-        # v0.5.0: OpenStreetMap moved to first/default - CARTO now
-        # requires an API key for real traffic, so it's no longer a
-        # safe zero-config default (kept at the end for anyone who
-        # already has their own CARTO key/plan).
+        # 国土地理院 淡色地図 is first/default: OpenStreetMap's tile
+        # servers often refuse the generated page (opened from a local
+        # file, it sends no Referer, which OSM's tile policy requires),
+        # so the map came up blank (user report). CARTO needs an API key
+        # for real traffic, so it stays last for anyone who has one.
         return [
-            ('osm', self.tr('OpenStreetMap 標準（既定）')),
-            ('gsi_photo', self.tr('国土地理院 航空写真')),
-            ('gsi_pale', self.tr('国土地理院 淡色地図')),
+            ('gsi_pale', self.tr('国土地理院 淡色地図（既定）')),
             ('gsi_standard', self.tr('国土地理院 標準地図')),
+            ('gsi_photo', self.tr('国土地理院 航空写真')),
+            ('osm', self.tr('OpenStreetMap 標準')),
             ('carto_light', self.tr('CARTO Light（明るい配色・要APIキー）')),
         ]
 
@@ -143,7 +144,9 @@ class DisplayTab(QWidget):
         # toggle inside the generated HTML's own layer panel (spec
         # feedback: a runtime toggle there was confusing/unwanted).
         self.chk_basemap = QCheckBox(self.tr('背景地図を表示する'))
-        self.chk_basemap.setChecked(True)
+        # Off by default (user preference): most projects already add
+        # their own background tile layer on the データ設定 tab.
+        self.chk_basemap.setChecked(False)
         self.chk_basemap.toggled.connect(self._update_basemap_enabled)
         lay_basemap.addWidget(self.chk_basemap)
         row_basemap = QHBoxLayout()
@@ -155,6 +158,24 @@ class DisplayTab(QWidget):
         lay_basemap.addLayout(row_basemap)
         self._update_basemap_enabled()
         root.addWidget(grp_basemap)
+
+        # ---- Filter bar - its own box near the top (spec feedback: as
+        # one more checkbox inside 検索・一覧表示 at the bottom of this
+        # long tab it couldn't be found), with where its fields are
+        # chosen spelled out on screen rather than only in a tooltip.
+        grp_filter = QGroupBox(self.tr('フィルターバー（絞り込み）'))
+        lay_filter = QVBoxLayout(grp_filter)
+        self.chk_filter = QCheckBox(self.tr(
+            'フィルターバーを表示する（項目ごとに値を選んで、該当する地物だけを表示）'))
+        self.chk_filter.setChecked(False)
+        lay_filter.addWidget(self.chk_filter)
+        filter_hint = QLabel(self.tr(
+            '絞り込みに使う項目は、データ設定タブの各レイヤーの「ポップアップ・フィルター項目」→'
+            '「設定…」で、「フィルター」列にチェックして選びます。'
+            'どれか1つのレイヤーで選べば、同じ項目名を持つ他のレイヤーもまとめて絞り込まれます。'))
+        filter_hint.setWordWrap(True)
+        lay_filter.addWidget(filter_hint)
+        root.addWidget(grp_filter)
 
         # ---- Scale bar (spec item 1) ----------------------------------
         grp_scale = QGroupBox(self.tr('スケールバー'))
@@ -477,6 +498,7 @@ class DisplayTab(QWidget):
             'attribution': self.le_attribution.text().strip(),
             'searchEnabled': self.chk_search.isChecked(),
             'featureTableEnabled': self.chk_feature_table.isChecked(),
+            'filterEnabled': self.chk_filter.isChecked(),
             'scaleBar': (
                 {'position': self.cb_scalebar_pos.currentData()}
                 if self.chk_scalebar.isChecked() else None

@@ -28,6 +28,10 @@ JS_MODULE_ORDER = [
     # one <script>, so function declarations hoist across module
     # boundaries and this ordering only matters for top-level `var`s.
     'selection.js',
+    # Filter bar: needs FAG_FEATURES_BY_LAYER/FAG_GEOJSON_GROUPS
+    # (layer-control.js); search.js, point-list.js and selection.js call
+    # its fagFeaturePassesFilter, which hoists like every function here.
+    'filter.js',
     'main.js',
 ]
 

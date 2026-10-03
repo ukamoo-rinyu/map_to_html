@@ -31,15 +31,17 @@ from qgis.core import QgsRasterLayer
 
 from ..core import layer_utils, field_config, tile_layer
 from . import field_dialog
+from .label_tab import set_style_badge
 
 COL_GROUP = 0
 COL_NAME = 1
 COL_TYPE = 2
-COL_OPACITY = 3
-COL_MIN_ZOOM = 4
-COL_FIELDS = 5
-COL_POPUP = 6
-COL_VISIBLE = 7
+COL_LABEL = 3
+COL_OPACITY = 4
+COL_MIN_ZOOM = 5
+COL_FIELDS = 6
+COL_POPUP = 7
+COL_VISIBLE = 8
 
 
 class DataTab(QWidget):
@@ -89,23 +91,41 @@ class DataTab(QWidget):
         row_reload.addStretch()
         lay.addLayout(row_reload)
 
-        lay.addWidget(QLabel(self.tr(
+        hint = QLabel(self.tr(
             '行を選択して「上へ移動／下へ移動」で表示順を変更できます。リストの上にあるレイヤーほど'
             '地図上で手前（上）に描画され、凡例（レイヤーパネル）でもこの順に並びます。'
-        )))
+        ))
+        # Wrapping lets the window be narrower than this one long line.
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
 
-        self.table = QTableWidget(0, 8)
+        self.table = QTableWidget(0, 9)
+        # Long headers are split over two lines so the narrow checkbox/
+        # spinbox columns aren't sized by their header text alone.
         self.table.setHorizontalHeaderLabels([
-            self.tr('グループ'), self.tr('レイヤー名（地図上の表示ラベル）'),
-            self.tr('種別'), self.tr('不透明度'), self.tr('最小ズーム'),
-            self.tr('ポップアップ項目'),
-            self.tr('ポップアップ表示'), self.tr('初期表示ON'),
+            self.tr('グループ'), self.tr('レイヤー名\n（地図上の表示ラベル）'),
+            self.tr('種別'), self.tr('ラベル'), self.tr('不透明度'), self.tr('最小\nズーム'),
+            self.tr('ポップアップ・\nフィルター項目'),
+            self.tr('ポップアップ\n表示'), self.tr('初期表示\nON'),
         ])
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(COL_NAME, QHeaderView.ResizeMode.Stretch)
-        for col in (COL_GROUP, COL_TYPE, COL_OPACITY, COL_MIN_ZOOM,
+        for col in (COL_TYPE, COL_LABEL, COL_OPACITY, COL_MIN_ZOOM,
                     COL_FIELDS, COL_POPUP, COL_VISIBLE):
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+        # Group and name are sized by _fit_text_columns: fitted to their
+        # contents but capped, so one long group/layer name can't push
+        # the rest of the table off screen (spec feedback). The name
+        # column used to be Stretch, which Qt shrinks to almost nothing
+        # once the other columns don't fit - names then wrapped mid-word
+        # ("事業予/定地"). Both stay user-resizable by dragging.
+        header.setSectionResizeMode(COL_GROUP, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(COL_NAME, QHeaderView.ResizeMode.Interactive)
+        self.table.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.table.itemChanged.connect(self._on_item_changed)
+        # Only the group cell may wrap, and it does so through its own
+        # QLabel (see _merge_group_cells) - table-wide wrapping is what
+        # broke the layer names.
+        self.table.setWordWrap(False)
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -331,6 +351,7 @@ class DataTab(QWidget):
 
     # ------------------------------------------------------------
     def _rebuild_table(self):
+        self.table.clearSpans()
         self.table.setRowCount(0)
         # v0.3.0 task 2-4: the table is displayed in the REVERSE of
         # self._entries. self._entries[0] is the map's bottommost layer
@@ -346,6 +367,68 @@ class DataTab(QWidget):
         # _move_selected for the matching index translation.
         for entry in reversed(self._entries):
             self._append_row(entry)
+        self._merge_group_cells()
+        self._fit_text_columns()
+
+    def _merge_group_cells(self):
+        """Consecutive rows in the same QGIS group share one merged
+        グループ cell instead of repeating the group name on every row
+        (spec feedback). Only adjacent rows merge - the table order is
+        the map's stacking order, which the user may interleave across
+        groups on purpose, so rows are never regrouped to force a merge."""
+        rows = self.table.rowCount()
+        start = 0
+        while start < rows:
+            text = self._group_text(start)
+            end = start + 1
+            while end < rows and self._group_text(end) == text:
+                end += 1
+            if text and end - start > 1:
+                self.table.setSpan(start, COL_GROUP, end - start, 1)
+            if text:
+                # A wrapping QLabel shows the name, so a long group name
+                # breaks over lines inside the (merged) cell instead of
+                # widening the column; the item underneath carries only
+                # the text for comparison and the tooltip.
+                label = QLabel(text)
+                label.setWordWrap(True)
+                label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                label.setContentsMargins(4, 2, 4, 2)
+                label.setToolTip(text)
+                self.table.setCellWidget(start, COL_GROUP, label)
+            start = end
+
+    def _group_text(self, row):
+        item = self.table.item(row, COL_GROUP)
+        if item is None:
+            return ''
+        return item.data(Qt.ItemDataRole.UserRole) or ''
+
+    GROUP_COLUMN_MAX_WIDTH = 130
+    NAME_COLUMN_MAX_WIDTH = 220
+
+    def _fit_text_columns(self):
+        """Fit the グループ and レイヤー名 columns to their longest text,
+        capped at *_COLUMN_MAX_WIDTH and never narrower than the header.
+        Past the cap a group name wraps inside its cell and a layer name
+        is shortened with "…" (full text in its tooltip)."""
+        rows = range(self.table.rowCount())
+        self._fit_column(COL_GROUP, [self._group_text(row) for row in rows],
+                         self.GROUP_COLUMN_MAX_WIDTH)
+        self._fit_column(COL_NAME, [self.table.item(row, COL_NAME).text() for row in rows],
+                         self.NAME_COLUMN_MAX_WIDTH)
+
+    def _fit_column(self, column, texts, max_width):
+        metrics = self.table.fontMetrics()
+        widest = max([metrics.horizontalAdvance(t) + 16 for t in texts if t] or [0])
+        header_width = self.table.horizontalHeader().sectionSizeHint(column)
+        self.table.setColumnWidth(column, max(header_width, min(widest, max_width)))
+
+    def _on_item_changed(self, item):
+        # Keep an edited name's tooltip (its full text, since the cell
+        # may show it shortened) in step with the edit.
+        if item.column() == COL_NAME and item.toolTip() != item.text():
+            item.setToolTip(item.text())
 
     def _append_row(self, entry):
         layer = layer_utils.get_layer_by_id(entry['layer_id'])
@@ -357,16 +440,32 @@ class DataTab(QWidget):
         row = self.table.rowCount()
         self.table.insertRow(row)
 
-        group_item = QTableWidgetItem(' / '.join(group_path))
-        group_item.setFlags(group_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        group_text = ' / '.join(group_path)
+        # No display text: _merge_group_cells shows the name through a
+        # wrapping QLabel. Enabled only - not editable, and not
+        # selectable either, so clicking a merged group cell (which
+        # spans several rows) doesn't select just its first row.
+        group_item = QTableWidgetItem()
+        group_item.setData(Qt.ItemDataRole.UserRole, group_text)
+        group_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
         self.table.setItem(row, COL_GROUP, group_item)
 
         name_item = QTableWidgetItem(entry['label'])
+        name_item.setToolTip(entry['label'])
         self.table.setItem(row, COL_NAME, name_item)
 
         type_item = QTableWidgetItem(self._type_label(layer_type))
         type_item.setFlags(type_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         self.table.setItem(row, COL_TYPE, type_item)
+
+        # Which label style (作業用 / Web用) the layer is on right now -
+        # set on the ラベル設定 tab; refresh_label_styles() keeps it current.
+        label_item = QTableWidgetItem('—')
+        label_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+        label_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        if layer_type == 'vector':
+            set_style_badge(label_item, layer)
+        self.table.setItem(row, COL_LABEL, label_item)
 
         if layer_type == 'raster':
             spn_opacity = QSpinBox()
@@ -409,12 +508,16 @@ class DataTab(QWidget):
             cell_layout.setContentsMargins(2, 0, 2, 0)
             cell_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             btn_fields = QPushButton(self.tr('設定…'))
+            btn_fields.setToolTip(self.tr(
+                'ポップアップに表示する項目と並び順、\n'
+                'フィルターバーで絞り込みに使う項目を選びます。'
+            ))
             btn_fields.clicked.connect(lambda checked=False, e=entry, ly=layer: self._open_field_settings(ly, e))
             cell_layout.addWidget(btn_fields)
-            btn_copy = QPushButton(self.tr('→同グループにコピー'))
+            btn_copy = QPushButton(self.tr('→同グループ'))
             btn_copy.setToolTip(self.tr(
-                'このレイヤーの「ポップアップに表示する項目」設定（表示・非表示と並び順）を、\n'
-                '同じグループの他のレイヤーにも適用します。'
+                'このレイヤーの「ポップアップ・フィルター項目」設定（表示・非表示、並び順、\n'
+                'フィルター項目）を、同じグループの他のレイヤーにも適用します。'
             ))
             btn_copy.clicked.connect(lambda checked=False, e=entry: self._copy_field_config_to_group(e))
             cell_layout.addWidget(btn_copy)
@@ -443,6 +546,16 @@ class DataTab(QWidget):
         chk_visible.setChecked(entry['default_visible'])
         chk_visible.toggled.connect(lambda checked, e=entry: e.__setitem__('default_visible', checked))
         self.table.setCellWidget(row, COL_VISIBLE, self._centered(chk_visible))
+
+    def refresh_label_styles(self):
+        """Re-read each vector layer's current label style into the
+        ラベル column (the style is switched on the ラベル設定 tab, or
+        in QGIS itself, while this tab's rows stay as they are)."""
+        for row in range(self.table.rowCount()):
+            layer = layer_utils.get_layer_by_id(self._entries[self._entry_index_for_row(row)]['layer_id'])
+            item = self.table.item(row, COL_LABEL)
+            if layer is not None and item is not None and not isinstance(layer, QgsRasterLayer):
+                set_style_badge(item, layer)
 
     def _sync_labels_from_table(self):
         """Row-edited labels (double-click the name cell) only live in
@@ -590,6 +703,9 @@ class DataTab(QWidget):
                 'max_zoom': entry.get('max_zoom'),
                 'field_order': (
                     field_config.visible_field_order(entry['field_config']) if entry['field_config'] else None
+                ),
+                'filter_fields': (
+                    field_config.filter_field_names(entry['field_config']) if entry['field_config'] else []
                 ),
             })
         return result

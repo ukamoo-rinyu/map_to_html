@@ -14,9 +14,12 @@ CUSTOM_PROPERTY_KEY = 'facility_app_generator/popup_fields'
 
 
 def default_field_config(layer):
-    """Every field, in the layer's own order, all visible - what a
-    layer that's never been configured gets."""
-    return [{'name': name, 'visible': True} for name in layer.fields().names()]
+    """Every field, in the layer's own order, all visible and none used
+    as a filter - what a layer that's never been configured gets.
+    'filter' marks the fields offered in the web output's filter bar
+    (表示設定 tab's フィルターバー); configs saved before that existed
+    simply lack the key, which reads as False everywhere."""
+    return [{'name': name, 'visible': True, 'filter': False} for name in layer.fields().names()]
 
 
 def load_field_config(layer):
@@ -53,7 +56,7 @@ def reconcile_field_config(layer, config):
     known = {entry['name'] for entry in reconciled}
     for name in layer_names:
         if name not in known:
-            reconciled.append({'name': name, 'visible': True})
+            reconciled.append({'name': name, 'visible': True, 'filter': False})
     return reconciled
 
 
@@ -61,3 +64,8 @@ def visible_field_order(config):
     """The ordered list of field names to actually include, for
     core/geojson_writer.py's `field_order` param."""
     return [entry['name'] for entry in config if entry.get('visible', True)]
+
+
+def filter_field_names(config):
+    """Field names ticked as filter items, in the config's order."""
+    return [entry['name'] for entry in config if entry.get('filter', False)]

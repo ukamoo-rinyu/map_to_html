@@ -44,6 +44,7 @@ class FacilityAppGeneratorPlugin:
         self.iface.removePluginWebMenu(self.tr('Map to HTML'), self.action)
         self.iface.removeToolBarIcon(self.action)
         if self.dialog is not None:
+            self.dialog.skip_close_prompt = True
             self.dialog.close()
             self.dialog = None
 

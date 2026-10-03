@@ -23,11 +23,19 @@
    in label-layer.js relies on). */
 var FAG_FEATURES_BY_LAYER = {};
 
-function registerFeature(layerId, feature, layer) {
+/* {layerId: the L.geoJSON group buildStyledLayer returned} - what the
+   filter bar (filter.js) adds features back to / removes them from. */
+var FAG_GEOJSON_GROUPS = {};
+
+/* `top` is the layer the L.geoJSON group itself holds for this feature,
+   when that differs from `layer` (a point marker is a LayerGroup of a
+   visual + hit circle, and `layer` is the hit circle the popup is bound
+   to). filter.js removes/re-adds `top`. */
+function registerFeature(layerId, feature, layer, top) {
   var fid = feature.properties && feature.properties._fid;
   if (fid === undefined || fid === null) return;
   if (!FAG_FEATURES_BY_LAYER[layerId]) FAG_FEATURES_BY_LAYER[layerId] = {};
-  FAG_FEATURES_BY_LAYER[layerId][fid] = { feature: feature, layer: layer };
+  FAG_FEATURES_BY_LAYER[layerId][fid] = { feature: feature, layer: layer, top: top || layer };
 }
 
 /* Shared by search.js (task 3-1) and point-list.js (task 3-2): zoom to
@@ -162,6 +170,12 @@ function fagApplyThinning(map, settings) {
   FAG_THINNING_LAYERS.forEach(function (record) {
     var seen = {};
     record.markers.forEach(function (item) {
+      // Hidden by the filter bar (filter.js): stays off the map and
+      // doesn't claim a grid cell, so thinning picks among what's left.
+      if (item.marker.__fagFiltered) {
+        if (record.group.hasLayer(item.marker)) record.group.removeLayer(item.marker);
+        return;
+      }
       var keep = true;
       if (thinning) {
         var key = Math.floor(item.lat / cellLat) + ',' + Math.floor(item.lng / cellLng);
@@ -254,6 +268,7 @@ function initLayerControl(map, layersConfig, layersData, layersStyleData, displa
     FAG_LAYER_VISIBILITY.push({
       config: layerConfig, layerGroup: layerGroup, checked: !!layerConfig.defaultVisible,
     });
+    FAG_GEOJSON_GROUPS[layerConfig.id] = layerGroup;
     // Both conditions have to hold to be on the map at load, not just
     // the checkbox: a layer whose QGIS scale-based visibility says
     // "not at this zoom" must start hidden even though it's checked.
@@ -719,7 +734,7 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
         var visual = marker.fagVisual || marker;
         bindStyledLabel(hit, props.label_text, markerStyle, labelStyle);
         hit.fagLabelMultiDirection = !!feature.__fagSpread;
-        registerFeature(layerId, feature, hit);
+        registerFeature(layerId, feature, hit, marker);
         if (interactive) {
           bindPopupIfAny(hit, props, popupTrigger, popupCtx);
           if (popupTrigger !== 'none') bindHoverHighlight(hit, visual);

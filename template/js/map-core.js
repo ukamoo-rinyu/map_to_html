@@ -8,10 +8,9 @@
    initMap below always takes maxZoom from the map's own limit for
    exactly that reason. */
 var BASEMAP_DEFS = {
-  // Listed/selected first (v0.5.0): CARTO now requires an API key for
-  // any real traffic, so a plain OSM tile source - no key, no quota -
-  // is the safer default. CARTO stays available below for anyone who
-  // already has a key/plan for it.
+  // The fallback default is gsi_pale (initMap below): OSM's tile
+  // servers often refuse a page opened from a local file, which sends
+  // no Referer. CARTO requires an API key for any real traffic.
   osm: {
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     options: {
@@ -90,7 +89,7 @@ function initMap(config) {
   // 表示する" checkbox), not as a runtime on/off toggle in the output
   // itself - so when disabled, no tile layer is created here at all.
   if (display.basemapEnabled !== false) {
-    var basemap = BASEMAP_DEFS[display.basemap] || BASEMAP_DEFS.osm;
+    var basemap = BASEMAP_DEFS[display.basemap] || BASEMAP_DEFS.gsi_pale;
     // maxZoom is applied AFTER the basemap's own options, not before -
     // spreading the definition last let it clamp the display limit
     // below the map's, which is the same "basemap disappears when you

@@ -47,6 +47,7 @@ function applyTheme(theme) {
   initLayerControl(FAG.map, config.layers, layersData, layersStyleData, config.display, function () {
     initLabelLayer(FAG.map);
     initLabelClickPopup(FAG.map);
+    initFilter(config, FAG.map);
     initSearch(config, FAG.map);
     initFeatureTable(config, FAG.map);
     initSelection(config, FAG.map);

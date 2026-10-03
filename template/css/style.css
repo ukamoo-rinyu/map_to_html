@@ -70,6 +70,118 @@ html, body {
   flex: 0 1 auto;
 }
 
+/* ---- Filter bar (filter.js) - a row of checklist dropdowns under
+   the header, off unless the plugin turned it on. It sits in the
+   page's normal flow (the map pane shrinks to make room) and above the
+   map's own floating panels, so an open menu can hang over the map. ---- */
+#filter-bar {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  padding: 6px 16px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+}
+#filter-bar-items { display: flex; flex-wrap: wrap; gap: 6px; }
+#filter-bar-tail { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+#filter-bar-count { color: var(--muted-color); font-size: 12px; white-space: nowrap; }
+#filter-bar-reset,
+#filter-bar-toggle,
+.fag-filter-btn,
+.fag-filter-actions button {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-color);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+#filter-bar-reset:hover,
+.fag-filter-btn:hover,
+.fag-filter-actions button:hover { background: var(--bg-color); }
+/* Shown only on narrow screens - see the responsive block below. */
+#filter-bar-toggle { display: none; }
+
+.fag-filter { position: relative; }
+.fag-filter-btn {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A dropdown that is actually narrowing something stands out, so the
+   reader can tell at a glance why features are missing. */
+.fag-filter-btn.fag-filter-active {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  font-weight: 700;
+}
+.fag-filter-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 200px;
+  max-width: 320px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  padding: 6px;
+}
+.fag-filter-search {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+}
+.fag-filter-actions { display: flex; gap: 6px; margin-bottom: 6px; }
+.fag-filter-actions button { flex: 1; font-size: 12px; padding: 3px 6px; }
+.fag-filter-options { max-height: 50vh; overflow-y: auto; }
+.fag-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.fag-filter-option:hover { background: var(--bg-color); }
+.fag-filter-option input { margin: 0; flex: 0 0 auto; }
+.fag-filter-option-text { flex: 1; word-break: break-all; }
+.fag-filter-option-count { color: var(--muted-color); font-size: 11px; }
+.fag-filter-target {
+  color: var(--muted-color);
+  font-size: 11px;
+  padding: 0 2px 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+/* Funnel badge on the layers the filter bar can narrow (filter.js). */
+.fag-layer-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  flex: 0 0 auto;
+  color: var(--muted-color);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.fag-layer-filter-badge.fag-layer-filter-active {
+  color: var(--accent-color);
+  font-weight: 700;
+}
+
 /* ---- Body: map fills the remaining space ---- */
 #app-body {
   flex: 1;
@@ -700,6 +812,13 @@ html, body {
     flex: 1 1 100%;
     margin-left: 0;
   }
+  /* Filter dropdowns fold behind a "Filter" button on a phone so
+     they don't permanently take a chunk of the small map. */
+  #app.responsive #filter-bar { padding: 6px 12px; }
+  #app.responsive #filter-bar-toggle { display: inline-block; }
+  #app.responsive #filter-bar-items { display: none; flex: 1 1 100%; order: 3; }
+  #app.responsive #filter-bar.fag-open #filter-bar-items { display: flex; }
+  #app.responsive .fag-filter-menu { max-width: calc(100vw - 24px); }
   /* #feature-table-panel's own max-height (calc(100vh - 76px), see
      above) is fine on desktop where the panel is only 360px wide - a
      corner widget that happens to also grow tall. On mobile it's also

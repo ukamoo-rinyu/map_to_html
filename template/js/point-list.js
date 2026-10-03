@@ -104,6 +104,22 @@ function initFeatureTable(config, map) {
 
   loadLayer(tableLayers[0].id);
 
+  // Filter bar changed (filter.js): re-list the current layer, keeping
+  // the column the user sorted by. sortByColumn flips the direction
+  // when given the already-sorted column, so the direction is pre-
+  // flipped here to come out unchanged.
+  document.addEventListener('fag:filterchange', function () {
+    if (!state.layerId) return;
+    var sortColumn = state.sortColumn;
+    var sortDirection = state.sortDirection;
+    loadLayer(state.layerId);
+    if (sortColumn && state.columns.indexOf(sortColumn) !== -1) {
+      state.sortColumn = sortColumn;
+      state.sortDirection = -sortDirection;
+      sortByColumn(sortColumn);
+    }
+  });
+
   function loadLayer(layerId) {
     var byFid = FAG_FEATURES_BY_LAYER[layerId] || {};
     // Object.keys on a plain object with numeric-looking keys is
@@ -112,11 +128,17 @@ function initFeatureTable(config, map) {
     // again would be redundant, but doing it explicitly here doesn't
     // rely on that spec detail holding for whatever iterates this next.
     var fids = Object.keys(byFid).map(Number).sort(function (a, b) { return a - b; });
-    var rows = fids.map(function (fid) { return byFid[fid]; });
+    var allRows = fids.map(function (fid) { return byFid[fid]; });
+    // Only what the filter bar currently lets through (filter.js).
+    var rows = allRows.filter(function (entry) {
+      return fagFeaturePassesFilter(layerId, entry.feature);
+    });
 
-    var columns = rows.length
-      ? Object.keys(rows[0].feature.properties || {}).filter(function (key) {
-        return key !== 'label_text' && key !== '_fid';
+    // Columns come from the unfiltered rows, so a filter that matches
+    // nothing still leaves the header in place.
+    var columns = allRows.length
+      ? Object.keys(allRows[0].feature.properties || {}).filter(function (key) {
+        return !fagIsInternalKey(key);
       })
       : [];
 

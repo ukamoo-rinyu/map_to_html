@@ -46,10 +46,13 @@ def build_config(settings):
             'initialView': display['initialView'],
             'minZoom': display['minZoom'],
             'maxZoom': display['maxZoom'],
-            'basemap': display.get('basemap') or 'osm',
-            'basemapEnabled': bool(display.get('basemapEnabled', True)),
+            'basemap': display.get('basemap') or 'gsi_pale',
+            'basemapEnabled': bool(display.get('basemapEnabled', False)),
             'searchEnabled': bool(display.get('searchEnabled', True)),
             'featureTableEnabled': bool(display.get('featureTableEnabled', True)),
+            # Filter bar under the header (off by default). The fields it
+            # offers are per layer: layers[].filterFields below.
+            'filterEnabled': bool(display.get('filterEnabled', False)),
             'popupTrigger': display.get('popupTrigger') or 'click',
             'attribution': display.get('attribution') or '',
             # Popup presentation (spec item 7). popupLinks is None when
@@ -91,6 +94,11 @@ def build_config(settings):
                 # 最小ズーム column. Absent = always drawn.
                 'minZoom': layer.get('minZoom'),
                 'maxZoom': layer.get('maxZoom'),
+                # [{'name': QGIS field name, 'key': GeoJSON attribute
+                # holding its value}] - key differs from name ('_flt_'
+                # prefix) when the field is hidden from the popup.
+                # Empty unless display.filterEnabled.
+                'filterFields': list(layer.get('filterFields') or []),
             }
             for layer in settings.get('layers', [])
         ],

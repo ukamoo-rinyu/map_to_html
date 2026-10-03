@@ -260,6 +260,16 @@ function bindHoverHighlight(interactiveLayer, visualLayer) {
    when there's nothing to show, so callers (layer-control.js's
    bindPopupIfAny) can skip binding a popup at all instead of opening
    an empty box on click. */
+/* The plugin's own synthetic attributes, never real QGIS data shown to
+   the reader: 'label_text' (pre-evaluated label), '_fid' (feature id),
+   and '_flt_*' (a filter-bar field the user hid from the popup, which
+   the filter still needs - see core/geojson_writer.py extra_fields).
+   Every attribute list in the template - popup, feature table,
+   search, CSV/GeoJSON export - skips these through this one check. */
+function fagIsInternalKey(key) {
+  return key === 'label_text' || key === '_fid' || key.indexOf('_flt_') === 0;
+}
+
 var FAG_IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|bmp)(\?|#|$)/i;
 
 /* One attribute value, rendered. An http(s) value becomes a link (and
@@ -305,7 +315,7 @@ function buildGenericPopupHtml(props, ctx, latlng) {
   var aliases = ctx.aliases || {};
   var rows = Object.keys(props)
     .filter(function (key) {
-      if (key === 'label_text' || key === '_fid') return false;
+      if (fagIsInternalKey(key)) return false;
       if (ctx.showEmpty) return true;
       var value = props[key];
       return value !== null && value !== undefined && value !== '';

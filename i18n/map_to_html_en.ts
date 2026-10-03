@@ -146,6 +146,65 @@
         <source>表示するレイヤーを1つ以上追加してください。</source>
         <translation>Please add at least one layer to display.</translation>
     </message>
+    <message>
+        <location filename="../ui/data_tab.py" line="0" />
+        <source>ラベル</source>
+        <translation>Labels</translation>
+    </message>
+    <message>
+        <location filename="../ui/data_tab.py" line="0" />
+        <source>レイヤー名
+（地図上の表示ラベル）</source>
+        <translation>Layer name
+(label shown on the map)</translation>
+    </message>
+    <message>
+        <location filename="../ui/data_tab.py" line="0" />
+        <source>最小
+ズーム</source>
+        <translation>Min
+zoom</translation>
+    </message>
+    <message>
+        <location filename="../ui/data_tab.py" line="0" />
+        <source>ポップアップ
+表示</source>
+        <translation>Show
+popup</translation>
+    </message>
+    <message>
+        <location filename="../ui/data_tab.py" line="0" />
+        <source>初期表示
+ON</source>
+        <translation>Visible by
+default</translation>
+    </message>
+    <message>
+        <location filename="../ui/data_tab.py" line="0" />
+        <source>→同グループ</source>
+        <translation>→ Same group</translation>
+    </message>
+    <message>
+        <location filename="../ui/data_tab.py" line="0" />
+        <source>ポップアップ・
+フィルター項目</source>
+        <translation>Popup /
+filter fields</translation>
+    </message>
+    <message>
+        <location filename="../ui/data_tab.py" line="0" />
+        <source>ポップアップに表示する項目と並び順、
+フィルターバーで絞り込みに使う項目を選びます。</source>
+        <translation>Pick the fields shown in the popup and their order,
+and the fields the filter bar can narrow by.</translation>
+    </message>
+    <message>
+        <location filename="../ui/data_tab.py" line="0" />
+        <source>このレイヤーの「ポップアップ・フィルター項目」設定（表示・非表示、並び順、
+フィルター項目）を、同じグループの他のレイヤーにも適用します。</source>
+        <translation>Applies this layer's popup / filter field settings (shown or hidden, order,
+filter fields) to the other layers in the same group.</translation>
+    </message>
 </context>
 <context>
     <name>DisplayTab</name>
@@ -309,6 +368,26 @@
         <source>最小ズームレベルは最大ズームレベル以下にしてください。</source>
         <translation>The minimum zoom level must be less than or equal to the maximum zoom level.</translation>
     </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="0" />
+        <source>国土地理院 淡色地図（既定）</source>
+        <translation>GSI (Japan) pale map (default)</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="0" />
+        <source>フィルターバーを表示する（項目ごとに値を選んで、該当する地物だけを表示）</source>
+        <translation>Show the filter bar (pick values per field to show only matching features)</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="0" />
+        <source>フィルターバー（絞り込み）</source>
+        <translation>Filter bar</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="0" />
+        <source>絞り込みに使う項目は、データ設定タブの各レイヤーの「ポップアップ・フィルター項目」→「設定…」で、「フィルター」列にチェックして選びます。どれか1つのレイヤーで選べば、同じ項目名を持つ他のレイヤーもまとめて絞り込まれます。</source>
+        <translation>The fields to filter by are picked on the Data tab: "Popup / filter fields" &gt; "Settings…", then tick them in the "Filter" column. Ticking a field on one layer also filters every other layer that has a field of the same name.</translation>
+    </message>
 </context>
 <context>
     <name>FacilityAppGeneratorDialog</name>
@@ -381,6 +460,44 @@
         <source>エラー</source>
         <translation>Error</translation>
     </message>
+    <message>
+        <location filename="../dialog.py" line="0" />
+        <source>ラベル設定</source>
+        <translation>Labels</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="0" />
+        <source>ほか {0} レイヤー</source>
+        <translation>and {0} more layer(s)</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="0" />
+        <source>ラベルを元に戻しますか？</source>
+        <translation>Restore the labels?</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="0" />
+        <source>次のレイヤーのラベルが「Web用」スタイルのままです。
+作業用スタイルに戻してから閉じますか？
+
+{0}</source>
+        <translation>The labels of these layers are still on the "Web" style.
+Switch them back to the working style before closing?
+
+{0}</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="0" />
+        <source>フィルターバーはオンですが、フィルター項目が選ばれていないため表示されません。
+データ設定タブの「ポップアップ・フィルター項目」→「設定…」で、「フィルター」列にチェックしてください。</source>
+        <translation>The filter bar is on, but no filter fields are picked, so it is not shown.
+On the Data tab, open "Popup / filter fields" &gt; "Settings…" and tick fields in the "Filter" column.</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="0" />
+        <source>フィルターの対象レイヤー:</source>
+        <translation>Layers each filter applies to:</translation>
+    </message>
 </context>
 <context>
     <name>FacilityAppGeneratorPlugin</name>
@@ -422,6 +539,40 @@
         <location filename="../ui/field_dialog.py" line="55" />
         <source>すべて非表示</source>
         <translation>Hide all</translation>
+    </message>
+    <message>
+        <location filename="../ui/field_dialog.py" line="0" />
+        <source>ポップアップ・フィルター項目 - {0}</source>
+        <translation>Popup / filter fields - {0}</translation>
+    </message>
+    <message>
+        <location filename="../ui/field_dialog.py" line="0" />
+        <source>ポップアップ</source>
+        <translation>Popup</translation>
+    </message>
+    <message>
+        <location filename="../ui/field_dialog.py" line="0" />
+        <source>フィルター</source>
+        <translation>Filter</translation>
+    </message>
+    <message>
+        <location filename="../ui/field_dialog.py" line="0" />
+        <source>ポップアップ:</source>
+        <translation>Popup:</translation>
+    </message>
+    <message>
+        <location filename="../ui/field_dialog.py" line="0" />
+        <source>フィルターをすべて外す</source>
+        <translation>Untick all filters</translation>
+    </message>
+    <message>
+        <location filename="../ui/field_dialog.py" line="0" />
+        <source>「ポップアップ」にチェックした項目が、上から順に地図クリック時のポップアップに表示されます。
+「フィルター」にチェックした項目は、表示設定タブでフィルターバーをオンにしたとき、値で絞り込める項目になります（同じ項目名を持つ他のレイヤーにも自動で適用されます）。
+行はドラッグするか、下の「上へ」「下へ」で並び替えられます。</source>
+        <translation>Fields ticked under "Popup" are shown, top to bottom, in the popup when a feature is clicked.
+Fields ticked under "Filter" can be used to narrow the map down by value when the filter bar is turned on in the Display tab (other layers with a field of the same name are filtered too).
+Drag rows, or use Up / Down below, to reorder them.</translation>
     </message>
 </context>
 <context>
@@ -536,6 +687,259 @@
         <location filename="../ui/output_tab.py" line="166" />
         <source>単一HTML方式の出力先はファイルパスを指定してください。</source>
         <translation>For single-HTML output, please specify a file path.</translation>
+    </message>
+</context>
+<context>
+    <name>LabelTab</name>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>「データ設定」タブで追加したベクタレイヤーのラベルを、HTML出力向けにまとめて整えます。文字色は黒で固定し、バッファ（縁取り）色を各レイヤーのシンボル色から自動で作ります。バッファ色のセルをダブルクリックすると手動で指定でき、右クリックで自動の色に戻せます。
+設定は「Web」という別のレイヤースタイルに書き込むため、作業用の表示は消えません。HTMLを生成し終えたら「作業用に戻す」で元に戻せます。</source>
+        <translation>Prepares the labels of the vector layers added on the Data tab for HTML export in one go. Text is always black; the buffer (halo) colour is derived from each layer's symbol colour. Double-click a buffer colour to pick one by hand, or right-click it to go back to the automatic colour.
+The settings are written to a separate layer style named "Web", so your working style is kept. Once the HTML is generated, "Back to working style" switches back.</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>レイヤー</source>
+        <translation>Layer</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>現在のスタイル</source>
+        <translation>Current style</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>シンボル色</source>
+        <translation>Symbol colour</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>バッファ色</source>
+        <translation>Buffer colour</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>取得元</source>
+        <translation>Taken from</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>出力時の注意</source>
+        <translation>Notes for export</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>適用する項目（チェックした項目だけ書き換えます）</source>
+        <translation>Items to apply (only the ticked ones are changed)</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>フォント（{0} / 日本語以外は{1}）</source>
+        <translation>Font ({0} / {1} for non-Japanese text)</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>フォント（{0}）</source>
+        <translation>Font ({0})</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>サイズ（{0}pt）</source>
+        <translation>Size ({0} pt)</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>文字色（黒で固定）</source>
+        <translation>Text colour (always black)</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>バッファ（レイヤー色 {0}pt）</source>
+        <translation>Buffer (layer colour, {0} pt)</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>配置（曲線→水平）</source>
+        <translation>Placement (curved to horizontal)</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>縮尺連動（1:{0} 以下で表示）</source>
+        <translation>Scale visibility (1:{0} and closer)</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>作業用に戻す</source>
+        <translation>Back to working style</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>Web用に切替して適用</source>
+        <translation>Switch to web style and apply</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>{0} レイヤーが対象です。</source>
+        <translation>{0} layer(s) listed.</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>「データ設定」タブにベクタレイヤーを追加すると、ここに表示されます。</source>
+        <translation>Vector layers added on the Data tab are listed here.</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>Web用</source>
+        <translation>Web</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>作業用</source>
+        <translation>Working</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>白（既定）</source>
+        <translation>White (default)</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>手動</source>
+        <translation>Manual</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>{0} のバッファ色</source>
+        <translation>Buffer colour for {0}</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>バッファが濃く、黒文字が読みにくい可能性</source>
+        <translation>Dark buffer, black text may be hard to read</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>自動生成の色に戻す</source>
+        <translation>Reset to automatic colour</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>対象なし</source>
+        <translation>Nothing selected</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>適用するレイヤーがありません。</source>
+        <translation>There is no layer to apply the preset to.</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>{0} レイヤーに適用しました。</source>
+        <translation>Applied to {0} layer(s).</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>スキップ：</source>
+        <translation>Skipped: </translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>{0} レイヤーを作業用スタイルに戻しました。</source>
+        <translation>{0} layer(s) switched back to the working style.</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>ラベルは「ラベル設定」タブで適用したWeb用スタイルです。</source>
+        <translation>The labels use the web style applied on the Labels tab.</translation>
+    </message>
+    <message>
+        <location filename="../ui/label_tab.py" line="0" />
+        <source>ラベルは普段の作業用スタイルです。</source>
+        <translation>The labels use your normal working style.</translation>
+    </message>
+</context>
+<context>
+    <name>LabelPrep</name>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>シンボルなし</source>
+        <translation>No symbol</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>単一シンボル</source>
+        <translation>Single symbol</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>分類（実質1色）</source>
+        <translation>Classified (one colour in practice)</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>複数色</source>
+        <translation>Several colours</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>対応外のシンボル</source>
+        <translation>Unsupported renderer</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>ラベル未設定（スキップ）</source>
+        <translation>No labels configured (skipped)</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>ルールベースラベル（現在は対象外）</source>
+        <translation>Rule based labels (not supported yet)</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>適用しました</source>
+        <translation>Applied</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>ラベル未設定</source>
+        <translation>No labels configured</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>ラベル表示がオフ（適用するとオンになります）</source>
+        <translation>Labels are switched off (applying turns them on)</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>曲線ラベル → 水平に変換されます</source>
+        <translation>Curved labels will be flattened to horizontal</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>引き出し線は出力されません</source>
+        <translation>Callouts are not exported</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>ジオメトリジェネレータは再現できません</source>
+        <translation>Geometry generators cannot be reproduced</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>バッファが濃く、黒文字が読みにくい可能性</source>
+        <translation>Dark buffer, black text may be hard to read</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>影は再現できません（バッファで代替を推奨）</source>
+        <translation>Shadows cannot be reproduced (use a buffer instead)</translation>
+    </message>
+    <message>
+        <location filename="../core/label_prep.py" line="0" />
+        <source>フォント「{0}」は閲覧環境で置き換わる可能性</source>
+        <translation>Font "{0}" may be substituted in the browser</translation>
     </message>
 </context>
 </TS>

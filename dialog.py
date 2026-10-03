@@ -23,8 +23,9 @@ from qgis.core import (
 
 from .ui.data_tab import DataTab
 from .ui.display_tab import DisplayTab
+from .ui.label_tab import LabelTab
 from .ui.output_tab import OutputTab
-from .core import style_extractor, geojson_writer, config_builder, html_builder, layer_utils, tile_layer
+from .core import label_prep, style_extractor, geojson_writer, config_builder, html_builder, layer_utils, tile_layer
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'template')
 
@@ -34,7 +35,7 @@ class FacilityAppGeneratorDialog(QDialog):
         super().__init__(parent)
         self.iface = iface
         self.setWindowTitle(self.tr('Map to HTML'))
-        self._resize_to_fit_screen(760, 640)
+        self._resize_to_fit_screen(1200, 640)
         # Explicitly modeless (plugin.py opens it with show(), not
         # exec()): the user has to be able to keep working in QGIS -
         # changing a layer's symbology, adding a layer - while this is
@@ -42,6 +43,9 @@ class FacilityAppGeneratorDialog(QDialog):
         # 再読み込み button.
         self.setModal(False)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMinMaxButtonsHint)
+        # Set by plugin.py's unload() - closing because QGIS is exiting
+        # or the plugin is being reloaded must not stop on a question.
+        self.skip_close_prompt = False
         self._build_ui()
 
     def _resize_to_fit_screen(self, width, height):
@@ -65,9 +69,11 @@ class FacilityAppGeneratorDialog(QDialog):
 
         self.tabs = QTabWidget()
         self.data_tab = DataTab()
+        self.label_tab = LabelTab(self.iface)
         self.display_tab = DisplayTab()
         self.output_tab = OutputTab()
         self.tabs.addTab(self.data_tab, self.tr('データ設定'))
+        self.tabs.addTab(self.label_tab, self.tr('ラベル設定'))
         self.tabs.addTab(self.display_tab, self.tr('表示設定'))
         self.tabs.addTab(self.output_tab, self.tr('出力設定'))
         root.addWidget(self.tabs)
@@ -78,14 +84,112 @@ class FacilityAppGeneratorDialog(QDialog):
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        # Only rejected, not also the button's clicked: the Close button
+        # emits both, and closing twice would ask the label question
+        # below a second time after the user answered キャンセル.
         buttons.rejected.connect(self.close)
-        buttons.button(QDialogButtonBox.StandardButton.Close).clicked.connect(self.close)
         root.addWidget(buttons)
 
     # ------------------------------------------------------------
+    def reject(self):
+        """Every way of closing ends up here (閉じる, the window's ×,
+        Esc - QDialog.closeEvent calls reject()), so this is where the
+        ラベル設定 tab's "Web" styles are offered to be switched back."""
+        if not self.skip_close_prompt and not self._confirm_restore_label_styles():
+            return
+        super().reject()
+
+    def _confirm_restore_label_styles(self):
+        """Ask whether layers left on the "Web" label style should go
+        back to their working style. Returns False if the user cancels
+        (the dialog then stays open)."""
+        layers = [
+            entry['layer'] for entry in reversed(self.data_tab.get_layers())
+            if not isinstance(entry['layer'], QgsRasterLayer)
+            and label_prep.is_web_style_active(entry['layer'])
+        ]
+        if not layers:
+            return True
+
+        names = '\n'.join('・' + layer.name() for layer in layers[:10])
+        if len(layers) > 10:
+            names += '\n' + self.tr('ほか {0} レイヤー').format(len(layers) - 10)
+        answer = QMessageBox.question(
+            self, self.tr('ラベルを元に戻しますか？'),
+            self.tr('次のレイヤーのラベルが「Web用」スタイルのままです。\n'
+                    '作業用スタイルに戻してから閉じますか？\n\n{0}').format(names),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes,
+        )
+        if answer == QMessageBox.StandardButton.Cancel:
+            return False
+        if answer == QMessageBox.StandardButton.Yes:
+            for layer in layers:
+                label_prep.restore_base_style(layer)
+            self.iface.mapCanvas().refreshAllLayers()
+        return True
+
+    def _filter_summary(self, layers):
+        """Completion-message lines saying which layers each filter
+        narrows (spec feedback: どのレイヤーに対してフィルター掛けして
+        いるのか分からない)."""
+        targets = {}  # field name -> [layer label]
+        for entry in layers:
+            for item in entry.get('filter_config') or []:
+                targets.setdefault(item['name'], []).append(entry['label'])
+        if not targets:
+            return ''
+        lines = [self.tr('フィルターの対象レイヤー:')]
+        for name, labels in targets.items():
+            lines.append('  {0} → {1}'.format(name, '、'.join(labels)))
+        return '\n\n' + '\n'.join(lines)
+
+    @staticmethod
+    def _filter_field_names(layers, display_settings):
+        """Every field name ticked as a filter on ANY layer, in first-
+        seen order - empty when the filter bar is off, so an export
+        without it is unchanged. Ticking a field on one layer is enough:
+        _filter_fields then applies it to every layer that has a field
+        of that name (spec feedback: ticking it on only one of several
+        sibling layers left the others silently unfiltered)."""
+        if not display_settings.get('filterEnabled'):
+            return []
+        names = []
+        for entry in layers:
+            for name in entry.get('filter_fields') or []:
+                if name not in names:
+                    names.append(name)
+        return names
+
+    @staticmethod
+    def _filter_fields(entry, filter_names):
+        """[{'name', 'key'}] for this layer's part of the filter bar:
+        each pooled filter name the layer actually has. A filter field
+        hidden from the popup is still written to the GeoJSON (the bar
+        needs its values) under a '_flt_' key the template treats as
+        internal."""
+        layer_names = entry['layer'].fields().names()
+        field_order = entry.get('field_order')
+        shown = set(field_order if field_order is not None else layer_names)
+        return [
+            {'name': name, 'key': name if name in shown else '_flt_' + name}
+            for name in filter_names if name in layer_names
+        ]
+
     def _on_tab_changed(self, index):
-        if self.tabs.widget(index) is self.display_tab:
+        if self.tabs.widget(index) is self.data_tab:
+            self.data_tab.refresh_label_styles()
+        elif self.tabs.widget(index) is self.display_tab:
             self._sync_name_field_choices()
+        elif self.tabs.widget(index) is self.label_tab:
+            # Follows whatever is currently added on データ設定, listed
+            # top-first like that tab's table (get_layers() is in map
+            # stacking order, bottom-first).
+            self.label_tab.set_layers([
+                entry['layer'] for entry in reversed(self.data_tab.get_layers())
+                if not isinstance(entry['layer'], QgsRasterLayer)
+            ])
 
     def _current_canvas_view(self):
         """The QGIS map canvas's current extent as a WGS84
@@ -172,6 +276,7 @@ class FacilityAppGeneratorDialog(QDialog):
                 # Symbology that had to be approximated (spec item 10-C:
                 # a silently changed appearance is the worst outcome).
                 style_warnings = []
+                filter_names = self._filter_field_names(layers, display_settings)
                 for index, entry in enumerate(layers):
                     self.output_tab.set_progress(
                         index, self.tr('レイヤーを書き出しています… ({0}/{1}) {2}').format(
@@ -202,9 +307,14 @@ class FacilityAppGeneratorDialog(QDialog):
                     )
                     label_evaluator = style_extractor.build_label_text_evaluator(entry['layer'])
                     geojson_path = os.path.join(tmp_dir, f'layer_{index}.geojson')
+                    filter_fields = self._filter_fields(entry, filter_names)
                     geojson_writer.write_sites_geojson(
                         entry['layer'], geojson_path, label_evaluator, id_field=None,
                         field_order=entry.get('field_order'),
+                        extra_fields={
+                            item['name']: item['key'] for item in filter_fields
+                            if item['key'] != item['name']
+                        },
                         # Features in a category the user unchecked in QGIS
                         # are invisible there, so they're not exported.
                         feature_filter=style_extractor.build_render_filter(entry['layer']),
@@ -214,6 +324,7 @@ class FacilityAppGeneratorDialog(QDialog):
                         'geojson_path': geojson_path,
                         'style': style,
                     })
+                    entry['filter_config'] = filter_fields
 
                 self.output_tab.set_progress(len(layers), self.tr('config.jsonを構築しています…'))
                 QApplication.processEvents()
@@ -231,6 +342,7 @@ class FacilityAppGeneratorDialog(QDialog):
                             'fieldAliases': layer_utils.field_aliases(entry['layer']),
                             'minZoom': entry.get('min_zoom'),
                             'maxZoom': entry.get('max_zoom'),
+                            'filterFields': entry.get('filter_config') or [],
                         }
                         for entry in layers
                         if entry['id'] not in skipped_ids
@@ -251,6 +363,16 @@ class FacilityAppGeneratorDialog(QDialog):
             if style_warnings:
                 message += '\n\n' + self.tr('以下は見た目が変わっている可能性があります:\n') + \
                     '\n'.join(dict.fromkeys(style_warnings))
+            if display_settings.get('filterEnabled'):
+                message += self._filter_summary(layers)
+            if display_settings.get('filterEnabled') and not any(
+                    entry.get('filter_config') for entry in layers):
+                # The bar only appears once some field is picked, so say
+                # why it's missing instead of leaving the user to guess.
+                message += '\n\n' + self.tr(
+                    'フィルターバーはオンですが、フィルター項目が選ばれていないため表示されません。\n'
+                    'データ設定タブの「ポップアップ・フィルター項目」→「設定…」で、'
+                    '「フィルター」列にチェックしてください。')
             self.output_tab.set_result(message, is_error=False)
             if written:
                 # written's last entry is always the generated .html file

@@ -2,13 +2,19 @@
 name=Map to HTML
 qgisMinimumVersion=3.16
 description=Publish any number of QGIS layers as a standalone Leaflet/HTML/JS web map, each keeping its own symbology and labels.
-version=0.5.0
+version=0.6.0
 author=rinyu
 email=ukamoo@gmail.com
 
-about=Pick any number of layers from the current QGIS project and export a self-contained web map (HTML + per-layer GeoJSON/style JSON) that runs in any browser without a server, qgis2web-style. Each layer's symbology (marker color/size/shape, line, fill and hatch patterns, transparency, labels) is extracted from QGIS and carried over as-is, with a toggle panel to show/hide layers, a cross-layer text search bar, a sortable per-layer attribute table, and feature selection with CSV/GeoJSON export.
+about=Pick any number of layers from the current QGIS project and export a self-contained web map (HTML + per-layer GeoJSON/style JSON) that runs in any browser without a server, qgis2web-style. Each layer's symbology (marker color/size/shape, line, fill and hatch patterns, transparency, labels) is extracted from QGIS and carried over as-is, with a toggle panel to show/hide layers, a cross-layer text search bar, a sortable per-layer attribute table, an optional filter bar that narrows the map by attribute values, and feature selection with CSV/GeoJSON export. A Labels tab prepares label styles for the web in one step (black text with a halo in each layer's colour) on a separate "Web" layer style, so the working style can be switched back at any time.
 
-changelog=0.5.0
+changelog=0.6.0
+      - Filter bar (optional, off by default): a row of checklist dropdowns under the title, one per chosen field, with Select all / Clear and a count per value. Only matching features are shown, and the map, labels, attribute table, search results and CSV/GeoJSON export all follow it. Fields are picked in the new Filter column of each layer's popup/filter field dialog; ticking a field on one layer also filters every other layer with a field of the same name. Each dropdown shows which layers it applies to, and the layer panel marks filtered layers with a funnel and a shown/total count
+      - New Labels tab (merged from the separate Map to HTML Label Prep plugin): applies web-friendly label settings (black text, a pale halo derived from each layer's symbol colour, one font and size, horizontal placement, scale-based visibility) to the exported vector layers in one step, written to a separate "Web" layer style. "Back to working style" switches back, and closing the plugin asks whether to switch back any layers still on the "Web" style. The Data tab shows which style each layer's labels are on
+      - Basemap: the built-in basemap is now off by default, and 国土地理院 pale map is the default choice (OpenStreetMap tiles are often refused for a page opened from a local file)
+      - Data tab: consecutive layers in the same QGIS group share one merged group cell, and long group and layer names no longer squeeze the table or wrap mid-word
+      - The English translation of the plugin dialog was brought up to date
+    0.5.0
       - Fixed: line and polygon layers never showed labels at all, even with labeling enabled in QGIS - labels are now placed at each feature's bounding-box center, matching how point labels already worked
       - Basemap: OpenStreetMap is now the first/default choice, since CARTO now requires an API key for real traffic (CARTO stays available further down the list); added a 国土地理院 aerial photo option
       - Zoom now animates smoothly for ordinary single-step zooming instead of jump-cutting between levels; a large multi-level jump still switches instantly, same as before, to avoid the animated-zoom slowdown a big dataset hit previously
@@ -60,7 +66,7 @@ changelog=0.5.0
     0.2.0
       - Multi-layer export with per-layer symbology/labels/popup fields
 
-tags=web,html,export,leaflet,search,facility,geojson
+tags=web,html,export,leaflet,search,filter,label,facility,geojson
 category=Web
 icon=icon.svg
 homepage=https://github.com/ukamoo-rinyu/map_to_html

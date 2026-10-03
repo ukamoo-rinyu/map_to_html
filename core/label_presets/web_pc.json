@@ -1,0 +1,23 @@
+{
+  "name": "web_pc",
+  "description": "PCブラウザでの閲覧を想定したHTML出力向けプリセット（黒文字＋レイヤ色バッファ）",
+  "font_family": "Noto Sans JP",
+  "font_family_latin": "Arial",
+  "size_unit": "Point",
+  "size": 10,
+  "color_mode": "buffer",
+  "text_color": "#000000",
+  "buffer": {
+    "enabled": true,
+    "size": 1.2,
+    "fallback_color": "#FFFFFF",
+    "auto_color": {
+      "enabled": true,
+      "lightness": 0.78,
+      "min_saturation": 0.5
+    }
+  },
+  "placement": "horizontal",
+  "scale_min": 25000,
+  "scale_max": 0
+}
