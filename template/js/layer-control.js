@@ -876,13 +876,30 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
    at all. `popupTrigger === 'hover'` (表示設定 tab) additionally opens
    the popup on mouseover/closes on mouseout; the default click-to-open
    binding is left in place either way, so hovering never disables
-   clicking, it just adds an extra way in. */
+   clicking, it just adds an extra way in.
+
+   While the radius panel is waiting for a center (FAG_RADIUS_PICK set,
+   radius.js), a click on a feature sets the center instead of opening
+   its popup - a point is centered exactly on itself. Leaflet's own
+   bindPopup click listener is swapped for ours so the popup never
+   opens in that mode; stopping the event also keeps the map's click
+   listeners (radius.js, the label-click popup) from running twice. */
 function bindPopupIfAny(layer, props, popupTrigger, popupCtx) {
   var html = buildGenericPopupHtml(props, popupCtx, fagFeatureLatLng(layer));
-  if (!html) return;
-  layer.bindPopup(html);
-  if (popupTrigger === 'hover') {
-    layer.on('mouseover', function () { layer.openPopup(); });
+  if (html) {
+    layer.bindPopup(html);
+    layer.off('click', layer._openPopup, layer);
+  }
+  layer.on('click', function (e) {
+    if (FAG_RADIUS_PICK) {
+      L.DomEvent.stop(e);
+      FAG_RADIUS_PICK(layer.getLatLng ? layer.getLatLng() : e.latlng);
+      return;
+    }
+    if (html) layer._openPopup(e);
+  });
+  if (html && popupTrigger === 'hover') {
+    layer.on('mouseover', function () { if (!FAG_RADIUS_PICK) layer.openPopup(); });
     layer.on('mouseout', function () { layer.closePopup(); });
   }
 }

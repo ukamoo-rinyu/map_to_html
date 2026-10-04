@@ -346,6 +346,7 @@ function initLabelClickPopup(map) {
     var openedByFeature = popupOpenedThisClick;
     popupOpenedThisClick = false;
     if (openedByFeature) return;
+    if (FAG_RADIUS_PICK) return; // radius.js handles a label click while picking a center
     var hit = hitTestLabelPlacement(e.containerPoint);
     if (hit && hit.marker.openPopup) hit.marker.openPopup();
   });

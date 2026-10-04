@@ -13,6 +13,9 @@
    use. */
 
 var FAG_RADIUS_STATE = null;    // {center: L.LatLng, radius: meters} while a search is shown
+// While the panel is open: function(latlng) that sets the center. A
+// feature click calls it instead of opening a popup (bindPopupIfAny).
+var FAG_RADIUS_PICK = null;
 var FAG_RADIUS_LIST_LIMIT = 100;
 
 function initRadiusSearch(config, map) {
@@ -36,6 +39,8 @@ function initRadiusSearch(config, map) {
     open = value;
     panel.el.classList.toggle('fag-hidden', !open);
     map.getContainer().classList.toggle('fag-radius-picking', open);
+    FAG_RADIUS_PICK = open ? function (latlng) { run(latlng, false); } : null;
+    if (open) map.closePopup();
     if (button) button.classList.toggle('fag-map-btn-active', open);
   }
 
@@ -77,7 +82,9 @@ function initRadiusSearch(config, map) {
   map.on('click', function (e) {
     if (!open) return;
     if (Date.now() - FAG_RECT_SELECT_ENDED_AT < 400) return; // end of a rectangle selection
-    run(e.latlng, false);
+    // A click on a label's text centers on the feature it labels.
+    var hit = typeof hitTestLabelPlacement === 'function' ? hitTestLabelPlacement(e.containerPoint) : null;
+    run(hit && hit.marker.getLatLng ? hit.marker.getLatLng() : e.latlng, false);
   });
   panel.select.addEventListener('change', function () {
     if (FAG_RADIUS_STATE) run(FAG_RADIUS_STATE.center, true);
