@@ -9,6 +9,8 @@ supported - callers should catch ValueError and skip/report those.
 """
 from urllib.parse import parse_qs
 
+from qgis.PyQt.QtCore import QCoreApplication
+
 
 def read_native_opacity(layer):
     """QGIS's own layer transparency (Layer Properties > Symbology, or
@@ -35,9 +37,10 @@ def extract_tile_style(layer, opacity_override=None):
     source = layer.source() or ''
     params = parse_qs(source)
     if params.get('type', [''])[0] != 'xyz' or not params.get('url'):
-        raise ValueError(
+        raise ValueError(QCoreApplication.translate(
+            'TileLayer',
             'レイヤー「{0}」はXYZタイル形式のラスターレイヤーではないため、'
-            'Web出力では未対応です（ローカルファイルやWMS/WMTSは非対応）。'.format(layer.name())
+            'Web出力では未対応です（ローカルファイルやWMS/WMTSは非対応）。').format(layer.name())
         )
 
     tile = {'url': params['url'][0]}
