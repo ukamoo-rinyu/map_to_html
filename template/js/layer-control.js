@@ -83,7 +83,7 @@ function buildPopupContext(layerConfig, display) {
    initLayerControl rather than a plain forEach. */
 function fagSetLoadingProgress(done, total) {
   var el = document.getElementById('loading-text');
-  if (el) el.textContent = 'Loading… ' + done + '/' + total + ' layers';
+  if (el) el.textContent = fagT('loading.layers', [done, total]);
 }
 
 function fagRemoveLoadingOverlay() {
@@ -590,7 +590,11 @@ function buildCategoryLegendHtml(categoryLegend) {
     // unnamed. Rendering that as a bare swatch with no text next to it
     // reads as a bug, so fall back to the raw classification value and
     // finally to an explicit placeholder.
-    var text = entry.label || entry.value || '(other)';
+    var text = entry.label || entry.value || '';
+    // The catch-all category has no name of its own - mark it so the
+    // language switch (i18n.js) can relabel it.
+    if (!text) li.querySelector('span:last-child').setAttribute('data-i18n', 'legend.other');
+    text = text || fagT('legend.other');
     // textContent, not innerHTML - a category label is raw QGIS data and
     // can contain <, & or quotes.
     li.querySelector('span:last-child').textContent = text;

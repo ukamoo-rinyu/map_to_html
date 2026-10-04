@@ -32,12 +32,24 @@ function applyTheme(theme) {
   FAG.layersData = layersData;
   FAG.layersStyleData = layersStyleData;
 
+  // A link copied with the share button (share.js) carries the view,
+  // layers, filters and language in its #fragment.
+  var shared = config.display.shareLink ? fagReadSharedState() : null;
+  initLanguage(config.display, shared && shared.lang);
+
   document.title = config.meta.title;
   document.getElementById('app-title').textContent = config.meta.title;
   applyTheme(config.theme);
 
   FAG.map = initMap(config);
   applyDisplaySettings(FAG.map, layersData, config.display);
+  if (shared && shared.view) FAG.map.setView(shared.view.center, shared.view.zoom);
+  // Popups are bound as finished HTML, so their link labels are put
+  // into the current language each time one opens.
+  FAG.map.on('popupopen', function (e) {
+    var el = e.popup.getElement();
+    if (el) fagApplyI18n(el);
+  });
   // initLayerControl now builds one layer per event-loop turn so the
   // loading counter can paint (spec item 8), so everything that depends
   // on the registries it fills goes in the completion callback rather
@@ -51,6 +63,10 @@ function applyTheme(theme) {
     initSearch(config, FAG.map);
     initFeatureTable(config, FAG.map);
     initSelection(config, FAG.map);
+    initLocate(config, FAG.map);
+    initRadiusSearch(config, FAG.map);
+    fagApplySharedState(FAG.map, config, shared);
+    initShare(config, FAG.map);
 
     // Panels/CSS can change the map container size after Leaflet measured it once.
     setTimeout(function () { FAG.map.invalidateSize(); }, 150);

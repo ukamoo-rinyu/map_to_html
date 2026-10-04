@@ -53,6 +53,11 @@ function initFeatureTable(config, map) {
   var rowsEl = document.getElementById('feature-table-rows');
   if (!panel || !select || !scrollEl) return;
 
+  document.addEventListener('fag:langchange', function () {
+    var count = countEl.getAttribute('data-count');
+    if (count !== null) countEl.textContent = fagT('table.items', [count]);
+  });
+
   // showPopup === false means the layer's own マップ上でのクリック/ホバーが
   // 無効化されている（layer-control.jsのlayerInteractive）ので、一覧表から
   // その行をクリックしても何も起きない = 一覧表に出す意味がない。search.jsも
@@ -171,7 +176,8 @@ function initFeatureTable(config, map) {
       return Math.min(FAG_TABLE_MAX_AUTO_COL_WIDTH, Math.max(FAG_TABLE_MIN_COL_WIDTH + 42, maxWidth + 34));
     });
 
-    countEl.textContent = rows.length + ' item' + (rows.length === 1 ? '' : 's');
+    countEl.setAttribute('data-count', rows.length);
+    countEl.textContent = fagT('table.items', [rows.length]);
     renderHeader();
     spacerEl.style.height = (rows.length * FAG_TABLE_ROW_HEIGHT) + 'px';
     scrollEl.scrollTop = 0;

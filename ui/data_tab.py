@@ -710,6 +710,62 @@ class DataTab(QWidget):
             })
         return result
 
+    # ------------------------------------------------------------
+    # Kept between sessions by core/settings_store.py. Popup/filter
+    # field choices aren't part of this - they already live on each
+    # QGIS layer (core/field_config.py) and come back with it.
+    # max_zoom isn't kept: it has no control here and always comes
+    # fresh from the layer's QGIS scale-based visibility.
+    STATE_KEYS = ('layer_id', 'label', 'auto_label', 'default_visible',
+                  'show_popup', 'opacity', 'min_zoom')
+
+    def get_state(self):
+        self._sync_labels_from_table()
+        return [{key: entry.get(key) for key in self.STATE_KEYS} for entry in self._entries]
+
+    def set_state(self, saved_entries):
+        """Rebuild the table from a saved list, in its saved order.
+        Layers no longer in the project are left out. Returns the
+        number of layers restored - 0 leaves the table as it was (the
+        layers currently visible in QGIS), so a project whose layers
+        were all replaced still opens with something useful."""
+        if not isinstance(saved_entries, list):
+            return 0
+        restorable = [
+            saved for saved in saved_entries
+            if isinstance(saved, dict) and layer_utils.get_layer_by_id(saved.get('layer_id'))
+        ]
+        if not restorable:
+            return 0
+
+        self._entries = []
+        for saved in restorable:
+            self._add_layer_by_id(saved['layer_id'])
+            if not self._entries or self._entries[-1]['layer_id'] != saved['layer_id']:
+                continue
+            entry = self._entries[-1]
+            # A label the user typed is kept; one that was still just the
+            # QGIS layer name follows a rename made since (same rule as
+            # reload_from_project).
+            if saved.get('label') and saved.get('label') != saved.get('auto_label'):
+                entry['label'] = saved['label']
+            for key in ('default_visible', 'show_popup'):
+                if isinstance(saved.get(key), bool):
+                    entry[key] = saved[key]
+            if entry['opacity'] is not None and isinstance(saved.get('opacity'), (int, float)):
+                entry['opacity'] = max(0.0, min(1.0, float(saved['opacity'])))
+            if 'min_zoom' in saved and (saved['min_zoom'] is None or isinstance(saved['min_zoom'], int)):
+                entry['min_zoom'] = saved['min_zoom']
+        self._rebuild_table()
+        self.refresh_pick_list()
+        return len(self._entries)
+
+    def reset_to_visible_layers(self):
+        """Back to what a first open shows: the layers visible in QGIS."""
+        self._entries = []
+        self._rebuild_table()
+        self._populate_visible_layers()
+
     def validate(self):
         errors = []
         if not self._entries:

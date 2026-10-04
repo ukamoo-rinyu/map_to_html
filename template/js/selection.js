@@ -20,6 +20,9 @@ var FAG_SELECT_HALO = '#7a5c00';
 // chance to back out first.
 var FAG_EXPORT_CONFIRM_THRESHOLD = 5000;
 
+/* When the last rectangle selection finished (see its mouseup). */
+var FAG_RECT_SELECT_ENDED_AT = 0;
+
 function fagSelectionCount() {
   var total = 0;
   Object.keys(FAG_SELECTION).forEach(function (layerId) {
@@ -54,13 +57,18 @@ function fagOnSelectionChange(hook) {
   FAG_SELECTION_CHANGE_HOOKS.push(hook);
 }
 
-function fagSelectionChanged(map) {
-  fagRedrawSelectionHighlight(map);
+function fagUpdateSelectionCount() {
   var countEl = document.getElementById('selection-count');
   if (countEl) {
     var n = fagSelectionCount();
-    countEl.textContent = n ? (n + ' selected') : 'None selected';
+    countEl.textContent = n ? fagT('selection.count', [n]) : fagT('selection.none');
   }
+}
+document.addEventListener('fag:langchange', fagUpdateSelectionCount);
+
+function fagSelectionChanged(map) {
+  fagRedrawSelectionHighlight(map);
+  fagUpdateSelectionCount();
   FAG_SELECTION_CHANGE_HOOKS.forEach(function (hook) {
     try { hook(); } catch (e) { /* a listener must not break selection */ }
   });
@@ -367,6 +375,9 @@ function initSelection(config, map) {
     if (rubberBand) { map.removeLayer(rubberBand); rubberBand = null; }
     dragStart = null;
     setRectMode(false);
+    // The browser follows this mouseup with a click; radius.js must
+    // not take it as a new search center.
+    FAG_RECT_SELECT_ENDED_AT = Date.now();
 
     fagClearSelection();
     selectableLayerIds().forEach(function (layerId) {
@@ -396,10 +407,7 @@ function initSelection(config, map) {
   // --- export buttons ----------------------------------------------
   function confirmLargeExport(count) {
     if (count <= FAG_EXPORT_CONFIRM_THRESHOLD) return true;
-    return window.confirm(
-      count + ' features will be exported. This may freeze the page for a few ' +
-      'seconds. Continue?'
-    );
+    return window.confirm(fagT('selection.confirmLarge', [count]));
   }
 
   function aliasesFor(layerId) {
@@ -421,7 +429,7 @@ function initSelection(config, map) {
         (byLayer[item.layerId] = byLayer[item.layerId] || []).push(item.entry);
       });
       var layerIds = Object.keys(byLayer);
-      if (!layerIds.length) { window.alert('Nothing is selected.'); return; }
+      if (!layerIds.length) { window.alert(fagT('selection.nothing')); return; }
       if (!confirmLargeExport(fagSelectionCount())) return;
       layerIds.forEach(function (layerId) {
         var csv = fagBuildCsv(byLayer[layerId], aliasesFor(layerId),
@@ -446,7 +454,7 @@ function initSelection(config, map) {
     var name;
     if (selectedOnly) {
       rows = selectedRowsAllLayers().map(function (item) { return item.entry; });
-      if (!rows.length) { window.alert('Nothing is selected.'); return; }
+      if (!rows.length) { window.alert(fagT('selection.nothing')); return; }
       name = 'selected_' + stamp;
     } else {
       var layerId = activeLayerId();

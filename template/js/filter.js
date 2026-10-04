@@ -74,6 +74,8 @@ function initFilter(config, map) {
     itemsEl.appendChild(fagBuildFilterControl(filter, changed));
   });
 
+  FAG_FILTER_STATE.changed = changed;
+
   resetBtn.addEventListener('click', function () {
     filters.forEach(function (filter) { fagSetAllValues(filter, true); });
     changed();
@@ -91,6 +93,13 @@ function initFilter(config, map) {
     filters.forEach(function (filter) {
       if (!filter.el.contains(event.target)) filter.menu.classList.add('fag-hidden');
     });
+  });
+
+  // Everything in the bar except the data values themselves follows
+  // the language switch (i18n.js).
+  document.addEventListener('fag:langchange', function () {
+    filters.forEach(fagRelabelFilterControl);
+    fagUpdateFilterCount(countEl);
   });
 
   fagUpdateFilterCount(countEl);
@@ -161,15 +170,14 @@ function fagBuildFilterControl(filter, onChange) {
   // plugin didn't give this field as a filter).
   var target = document.createElement('div');
   target.className = 'fag-filter-target';
-  target.textContent = 'Applies to: ' + filter.layerLabels.join(', ');
   menu.appendChild(target);
+  filter.target = target;
 
   var search = null;
   if (filter.values.length > FAG_FILTER_SEARCH_THRESHOLD) {
     search = document.createElement('input');
     search.type = 'search';
     search.className = 'fag-filter-search';
-    search.placeholder = 'Find a value…';
     menu.appendChild(search);
   }
 
@@ -177,10 +185,8 @@ function fagBuildFilterControl(filter, onChange) {
   actions.className = 'fag-filter-actions';
   var allBtn = document.createElement('button');
   allBtn.type = 'button';
-  allBtn.textContent = 'Select all';
   var noneBtn = document.createElement('button');
   noneBtn.type = 'button';
-  noneBtn.textContent = 'Clear';
   actions.appendChild(allBtn);
   actions.appendChild(noneBtn);
   menu.appendChild(actions);
@@ -200,7 +206,7 @@ function fagBuildFilterControl(filter, onChange) {
     });
     var text = document.createElement('span');
     text.className = 'fag-filter-option-text';
-    text.textContent = item.value === FAG_FILTER_BLANK ? '(blank)' : item.value;
+    text.textContent = item.value === FAG_FILTER_BLANK ? fagT('filter.blank') : item.value;
     var count = document.createElement('span');
     count.className = 'fag-filter-option-count';
     count.textContent = item.count;
@@ -256,8 +262,55 @@ function fagBuildFilterControl(filter, onChange) {
   filter.el = wrap;
   filter.button = button;
   filter.menu = menu;
-  fagUpdateFilterButton(filter);
+  filter.search = search;
+  filter.allBtn = allBtn;
+  filter.noneBtn = noneBtn;
+  fagRelabelFilterControl(filter);
   return wrap;
+}
+
+/* The dropdown's own wording, in the current language. */
+function fagRelabelFilterControl(filter) {
+  filter.target.textContent = fagT('filter.appliesTo', [filter.layerLabels.join(', ')]);
+  if (filter.search) filter.search.placeholder = fagT('filter.findValue');
+  filter.allBtn.textContent = fagT('filter.selectAll');
+  filter.noneBtn.textContent = fagT('filter.clear');
+  if (filter.checkboxes[FAG_FILTER_BLANK]) {
+    var blank = filter.checkboxes[FAG_FILTER_BLANK];
+    blank.label.querySelector('.fag-filter-option-text').textContent = fagT('filter.blank');
+    blank.text = fagT('filter.blank').toLowerCase();
+  }
+  fagUpdateFilterButton(filter);
+}
+
+/* For share.js: {filterIndex: [ticked values]} for each dropdown that
+   is narrowing something (an untouched dropdown is left out, so a
+   shared link stays short). */
+function fagFilterShareState() {
+  var state = {};
+  if (!FAG_FILTER_STATE) return state;
+  FAG_FILTER_STATE.filters.forEach(function (filter, index) {
+    var picked = filter.values.filter(function (item) { return filter.selected[item.value]; });
+    if (picked.length === filter.values.length) return;
+    state[index] = picked.map(function (item) { return item.value; });
+  });
+  return state;
+}
+
+/* The reverse, when a shared link is opened. Values the data no longer
+   has are ignored. */
+function fagApplyFilterShareState(state) {
+  if (!FAG_FILTER_STATE || !state) return;
+  var touched = false;
+  Object.keys(state).forEach(function (index) {
+    var filter = FAG_FILTER_STATE.filters[Number(index)];
+    if (!filter) return;
+    var wanted = {};
+    state[index].forEach(function (value) { wanted[value] = true; });
+    filter.values.forEach(function (item) { fagSetValue(filter, item.value, !!wanted[item.value]); });
+    touched = true;
+  });
+  if (touched) FAG_FILTER_STATE.changed();
 }
 
 function fagSetValue(filter, value, checked) {
@@ -274,12 +327,13 @@ function fagSetAllValues(filter, checked) {
 function fagUpdateFilterButton(filter) {
   var picked = filter.values.filter(function (item) { return filter.selected[item.value]; });
   var summary;
-  if (picked.length === filter.values.length) summary = 'All';
-  else if (!picked.length) summary = 'None';
-  else if (picked.length === 1) summary = picked[0].value === FAG_FILTER_BLANK ? '(blank)' : picked[0].value;
-  else summary = picked.length + ' of ' + filter.values.length;
+  if (picked.length === filter.values.length) summary = fagT('filter.all');
+  else if (!picked.length) summary = fagT('filter.none');
+  else if (picked.length === 1) summary = picked[0].value === FAG_FILTER_BLANK ? fagT('filter.blank') : picked[0].value;
+  else summary = fagT('filter.someOf', [picked.length, filter.values.length]);
   filter.button.textContent = filter.label + ': ' + summary + ' ▾';
-  filter.button.title = filter.label + ': ' + summary + '\nApplies to: ' + filter.layerLabels.join(', ');
+  filter.button.title = filter.label + ': ' + summary + '\n' +
+    fagT('filter.appliesTo', [filter.layerLabels.join(', ')]);
   filter.button.classList.toggle('fag-filter-active', picked.length !== filter.values.length);
 }
 
@@ -368,8 +422,7 @@ function fagUpdateLayerBadges() {
     var narrowed = shown !== total;
     badge.innerHTML = FAG_FUNNEL_SVG + (narrowed ? '<span>' + shown + '/' + total + '</span>' : '');
     badge.classList.toggle('fag-layer-filter-active', narrowed);
-    badge.title = 'Filter: ' + namesByLayer[layerId].join(', ') +
-      ' (showing ' + shown + ' of ' + total + ')';
+    badge.title = fagT('filter.badge', [namesByLayer[layerId].join(', '), shown, total]);
   });
 }
 
@@ -390,5 +443,5 @@ function fagUpdateFilterCount(countEl) {
       if (fagFeaturePassesFilter(layerId, byFid[fid].feature)) shown += 1;
     });
   });
-  countEl.textContent = 'Showing ' + shown + ' of ' + total;
+  countEl.textContent = fagT('filter.showing', [shown, total]);
 }

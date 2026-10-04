@@ -270,6 +270,15 @@ function fagIsInternalKey(key) {
   return key === 'label_text' || key === '_fid' || key.indexOf('_flt_') === 0;
 }
 
+/* What to call a feature in a result list (search, radius search): its
+   label text, else its first shown attribute. */
+function fagFeatureName(props) {
+  props = props || {};
+  var keys = Object.keys(props).filter(function (k) { return !fagIsInternalKey(k); });
+  var name = props.label_text || (keys.length ? props[keys[0]] : '');
+  return (name === null || name === undefined || name === '') ? fagT('search.noName') : String(name);
+}
+
 var FAG_IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|bmp)(\?|#|$)/i;
 
 /* One attribute value, rendered. An http(s) value becomes a link (and
@@ -378,20 +387,24 @@ function buildPopupLinksHtml(props, latlng, ctx) {
   var query = lat + ',' + lng;
   var parts = [];
 
-  function add(url, icon, label) {
+  // `key` is an i18n.js message: the popup HTML is built once, so the
+  // data-i18n attributes let main.js relabel it in the current language
+  // each time it opens.
+  function add(url, icon, key) {
+    var label = fagT(key);
     parts.push('<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer"' +
-      ' title="' + escapeHtml(label) + '">' + icon +
-      '<span class="fag-popup-link-label">' + escapeHtml(label) + '</span></a>');
+      ' title="' + escapeHtml(label) + '" data-i18n-title="' + key + '">' + icon +
+      '<span class="fag-popup-link-label" data-i18n="' + key + '">' + escapeHtml(label) + '</span></a>');
   }
 
   if (links.googleMaps) {
-    add('https://www.google.com/maps/search/?api=1&query=' + query, '🗺', 'Googleマップ');
+    add('https://www.google.com/maps/search/?api=1&query=' + query, '🗺', 'link.googleMaps');
   }
   if (links.streetView) {
-    add('https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + query, '📷', 'ストリートビュー');
+    add('https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + query, '📷', 'link.streetView');
   }
   if (links.directions) {
-    add('https://www.google.com/maps/dir/?api=1&destination=' + query, '🚗', 'ここへの経路');
+    add('https://www.google.com/maps/dir/?api=1&destination=' + query, '🚗', 'link.directions');
   }
   if (links.nameSearch && links.nameField) {
     var name = props ? props[links.nameField] : null;
@@ -399,11 +412,11 @@ function buildPopupLinksHtml(props, latlng, ctx) {
       // encodeURIComponent, not just HTML-escaping: a facility name with
       // a space, "&" or Japanese text would otherwise truncate or break
       // the query string.
-      add('https://www.google.com/search?q=' + encodeURIComponent(String(name)), '🔍', '名称で検索');
+      add('https://www.google.com/search?q=' + encodeURIComponent(String(name)), '🔍', 'link.nameSearch');
     }
   }
   if (links.gsi) {
-    add('https://maps.gsi.go.jp/#17/' + lat + '/' + lng + '/', '🗾', '地理院地図');
+    add('https://maps.gsi.go.jp/#17/' + lat + '/' + lng + '/', '🗾', 'link.gsi');
   }
 
   if (!parts.length) return '';

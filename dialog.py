@@ -12,8 +12,8 @@ import os
 import tempfile
 
 from qgis.PyQt.QtWidgets import (
-    QDialog, QVBoxLayout, QTabWidget, QDialogButtonBox, QMessageBox,
-    QApplication,
+    QDialog, QVBoxLayout, QHBoxLayout, QTabWidget, QDialogButtonBox, QMessageBox,
+    QApplication, QLabel, QPushButton,
 )
 from qgis.PyQt.QtCore import Qt, QUrl
 from qgis.PyQt.QtGui import QDesktopServices
@@ -25,7 +25,10 @@ from .ui.data_tab import DataTab
 from .ui.display_tab import DisplayTab
 from .ui.label_tab import LabelTab
 from .ui.output_tab import OutputTab
-from .core import label_prep, style_extractor, geojson_writer, config_builder, html_builder, layer_utils, tile_layer
+from .core import (
+    label_prep, style_extractor, geojson_writer, config_builder, html_builder, layer_utils,
+    tile_layer, settings_store,
+)
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'template')
 
@@ -47,6 +50,17 @@ class FacilityAppGeneratorDialog(QDialog):
         # or the plugin is being reloaded must not stop on a question.
         self.skip_close_prompt = False
         self._build_ui()
+        # Settings are kept in the QGIS project between sessions
+        # (core/settings_store.py). The fresh tabs' values are what
+        # 初期状態に戻す goes back to; the snapshot after restoring is
+        # what closing compares against, so just opening and closing
+        # the dialog doesn't modify the project.
+        self._default_state = self._collect_state()
+        # Settings are written to the project that was open when the
+        # dialog opened - never into a different one opened since.
+        self._project_file = QgsProject.instance().fileName()
+        self._restore_state()
+        self._saved_snapshot = self._collect_state()
 
     def _resize_to_fit_screen(self, width, height):
         """Open at the preferred size, but never taller/wider than the
@@ -83,12 +97,72 @@ class FacilityAppGeneratorDialog(QDialog):
         # which also covers layers added since the dialog opened.
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
+        row_bottom = QHBoxLayout()
+        btn_reset = QPushButton(self.tr('設定を初期状態に戻す'))
+        btn_reset.setToolTip(self.tr(
+            'データ設定・表示設定・出力設定を、初めて開いたときの状態に戻します。\n'
+            '（各レイヤーのポップアップ・フィルター項目の設定は、そのまま残ります）'))
+        btn_reset.clicked.connect(self._on_reset_settings)
+        row_bottom.addWidget(btn_reset)
+        self.lbl_state = QLabel('')
+        self.lbl_state.setStyleSheet('color:#767c87;')
+        self.lbl_state.setWordWrap(True)
+        row_bottom.addWidget(self.lbl_state, 1)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         # Only rejected, not also the button's clicked: the Close button
         # emits both, and closing twice would ask the label question
         # below a second time after the user answered キャンセル.
         buttons.rejected.connect(self.close)
-        root.addWidget(buttons)
+        row_bottom.addWidget(buttons)
+        root.addLayout(row_bottom)
+
+    # ------------------------------------------------------------
+    def _collect_state(self):
+        return {
+            'data': self.data_tab.get_state(),
+            'display': self.display_tab.get_state(),
+            'output': self.output_tab.get_state(),
+        }
+
+    def _restore_state(self):
+        state = settings_store.load()
+        if not state:
+            return
+        restored_layers = self.data_tab.set_state(state.get('data'))
+        self.display_tab.set_state(state.get('display'))
+        self.output_tab.set_state(state.get('output'))
+        message = self.tr('前回の設定（このQGISプロジェクトに保存）を読み込みました。')
+        saved_layers = state.get('data') or []
+        if restored_layers < len(saved_layers):
+            message += ' ' + self.tr('プロジェクトに見つからないレイヤー {0} 件は除きました。').format(
+                len(saved_layers) - restored_layers)
+        self.lbl_state.setText(message)
+
+    def _save_state(self, force=False):
+        if QgsProject.instance().fileName() != self._project_file:
+            return
+        state = self._collect_state()
+        if not force and state == self._saved_snapshot:
+            return
+        settings_store.save(state)
+        self._saved_snapshot = state
+
+    def _on_reset_settings(self):
+        answer = QMessageBox.question(
+            self, self.tr('設定を初期状態に戻す'),
+            self.tr('データ設定・表示設定・出力設定を初期状態に戻しますか？\n'
+                    'このプロジェクトに保存されている前回の設定も消去されます。'),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        self.data_tab.reset_to_visible_layers()
+        self.display_tab.set_state(self._default_state['display'])
+        self.output_tab.set_state(self._default_state['output'])
+        settings_store.clear()
+        self._saved_snapshot = self._collect_state()
+        self.lbl_state.setText(self.tr('設定を初期状態に戻しました。'))
 
     # ------------------------------------------------------------
     def reject(self):
@@ -97,6 +171,8 @@ class FacilityAppGeneratorDialog(QDialog):
         ラベル設定 tab's "Web" styles are offered to be switched back."""
         if not self.skip_close_prompt and not self._confirm_restore_label_styles():
             return
+        if not self.skip_close_prompt:
+            self._save_state()
         super().reject()
 
     def _confirm_restore_label_styles(self):
@@ -374,6 +450,7 @@ class FacilityAppGeneratorDialog(QDialog):
                     'データ設定タブの「ポップアップ・フィルター項目」→「設定…」で、'
                     '「フィルター」列にチェックしてください。')
             self.output_tab.set_result(message, is_error=False)
+            self._save_state(force=True)
             if written:
                 # written's last entry is always the generated .html file
                 # itself (html_builder.build_output appends it last for

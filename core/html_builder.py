@@ -14,6 +14,9 @@ import os
 # but conceptually "map setup") and before main.js, which is what
 # actually calls initSearch/initFeatureTable.
 JS_MODULE_ORDER = [
+    # fagT and the language switch - every module below builds its text
+    # through it, and main.js picks the language before drawing.
+    'i18n.js',
     'display-settings.js',
     'style-renderer.js',
     'fill-pattern.js',
@@ -32,6 +35,13 @@ JS_MODULE_ORDER = [
     # (layer-control.js); search.js, point-list.js and selection.js call
     # its fagFeaturePassesFilter, which hoists like every function here.
     'filter.js',
+    # Map buttons: 現在地 (locate.js, also defines the shared
+    # fagAddMapButton/fagToast), 半径検索 (radius.js, uses fagLocate),
+    # and the shareable #fragment + copy-link button (share.js, reads
+    # filter.js/radius.js state).
+    'locate.js',
+    'radius.js',
+    'share.js',
     'main.js',
 ]
 

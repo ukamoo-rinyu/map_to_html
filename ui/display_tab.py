@@ -1,13 +1,24 @@
 # -*- coding: utf-8 -*-
-"""Tab 2 (subset): screen size / responsive / initial view / zoom
-limits only (spec 3.1, Tab 2). Widgets (scale bar, geolocate, ...) and
-the layer-list panel are phase 2 (spec section 6)."""
+"""Tab 2: screen size / responsive / initial view / zoom limits, the
+basemap, filter bar, map buttons (scale bar, current location, radius
+search, link sharing), page language, popups, search/table, thinning
+and selection/export (spec 3.1, Tab 2).
+
+get_settings() is what an export uses; get_state()/set_state() are the
+raw widget values the dialog keeps in the QGIS project between
+sessions (core/settings_store.py)."""
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QGroupBox,
     QCheckBox, QRadioButton, QButtonGroup, QSpinBox, QDoubleSpinBox,
     QComboBox, QLineEdit, QSlider, QScrollArea, QFrame,
 )
+
+from .state_utils import widgets_state, apply_widgets_state
+
+# Radii offered in the published page's radius search; the default
+# chosen on this tab is added when it isn't one of them.
+RADIUS_CHOICES = [250, 500, 1000, 2000]
 
 
 class DisplayTab(QWidget):
@@ -195,6 +206,74 @@ class DisplayTab(QWidget):
         lay_scale.addStretch()
         self._update_scalebar_enabled()
         root.addWidget(grp_scale)
+
+        # ---- Map buttons (v0.7.0) -------------------------------------
+        grp_buttons = QGroupBox(self.tr('地図上のボタン'))
+        lay_buttons = QVBoxLayout(grp_buttons)
+        self.chk_locate = QCheckBox(self.tr(
+            '現在地ボタンを表示する（スマートフォンなどで、今いる場所を地図に表示）'))
+        self.chk_locate.setChecked(True)
+        self.chk_locate.setToolTip(self.tr(
+            'ブラウザが位置情報の利用を確認します。位置情報は閲覧者の端末の中だけで使われ、\n'
+            'どこにも送信されません。https:// で公開したページか、端末上のファイルとして\n'
+            '開いたときに使えます（http:// のページではブラウザが許可しません）。'))
+        lay_buttons.addWidget(self.chk_locate)
+
+        self.chk_radius = QCheckBox(self.tr(
+            '半径検索を使えるようにする（地点を決めて、指定した半径内の地物を近い順に一覧表示）'))
+        self.chk_radius.setChecked(True)
+        self.chk_radius.setToolTip(self.tr(
+            '中心は、地図のクリック・現在地・地図の中心から選べます。\n'
+            '地図に表示中のレイヤー（ポップアップ表示がオンのもの）が対象で、\n'
+            'フィルターバーの絞り込みにも従います。線・面は頂点の平均の位置で測ります。'))
+        self.chk_radius.toggled.connect(self._update_radius_enabled)
+        lay_buttons.addWidget(self.chk_radius)
+        row_radius = QHBoxLayout()
+        lbl_radius = QLabel(self.tr('最初に選ばれている半径:'))
+        lbl_radius.setStyleSheet('margin-left: 18px;')
+        row_radius.addWidget(lbl_radius)
+        self.sp_radius = QSpinBox()
+        self.sp_radius.setRange(50, 50000)
+        self.sp_radius.setSingleStep(50)
+        self.sp_radius.setSuffix(' m')
+        self.sp_radius.setValue(500)
+        row_radius.addWidget(self.sp_radius)
+        row_radius.addWidget(QLabel(self.tr('（閲覧者は 250m／500m／1km／2km からも選べます）')))
+        row_radius.addStretch()
+        lay_buttons.addLayout(row_radius)
+
+        self.chk_share = QCheckBox(self.tr(
+            'リンク共有ボタンを表示する（今の表示位置・レイヤー・絞り込みをURLにしてコピー）'))
+        self.chk_share.setChecked(True)
+        self.chk_share.setToolTip(self.tr(
+            'コピーしたURLを開くと、同じ場所・同じレイヤー・同じ絞り込みの状態で地図が開きます。\n'
+            'ファイルとして開いた地図のURLは、同じファイルを開ける人（共有フォルダなど）だけが使えます。'))
+        lay_buttons.addWidget(self.chk_share)
+        self._update_radius_enabled()
+        root.addWidget(grp_buttons)
+
+        # ---- Page language (spec 10.3) ---------------------------------
+        grp_lang = QGroupBox(self.tr('出力HTMLの表示言語'))
+        lay_lang = QVBoxLayout(grp_lang)
+        row_lang = QHBoxLayout()
+        row_lang.addWidget(QLabel(self.tr('最初に表示する言語:')))
+        self.cb_language = QComboBox()
+        for key, label in (
+            ('auto', self.tr('閲覧者のブラウザに合わせる（日本語以外は英語）')),
+            ('ja', self.tr('日本語')),
+            ('en', self.tr('英語（English）')),
+        ):
+            self.cb_language.addItem(label, key)
+        row_lang.addWidget(self.cb_language, 1)
+        lay_lang.addLayout(row_lang)
+        self.chk_lang_toggle = QCheckBox(self.tr('日本語／英語の切り替えボタンを表示する'))
+        self.chk_lang_toggle.setChecked(True)
+        lay_lang.addWidget(self.chk_lang_toggle)
+        lang_hint = QLabel(self.tr(
+            'ボタンや案内の文言が切り替わります。レイヤー名・項目名・値は、QGISのデータのまま表示されます。'))
+        lang_hint.setWordWrap(True)
+        lay_lang.addWidget(lang_hint)
+        root.addWidget(grp_lang)
 
         # ---- Fill opacity override (spec item 2) ----------------------
         grp_opacity = QGroupBox(self.tr('不透明度'))
@@ -395,6 +474,9 @@ class DisplayTab(QWidget):
         self.sp_width.setEnabled(enabled)
         self.sp_height.setEnabled(enabled)
 
+    def _update_radius_enabled(self):
+        self.sp_radius.setEnabled(self.chk_radius.isChecked())
+
     def _update_basemap_enabled(self):
         self.cb_basemap.setEnabled(self.chk_basemap.isChecked())
 
@@ -520,6 +602,17 @@ class DisplayTab(QWidget):
                 }
                 if self.chk_thinning.isChecked() else None
             ),
+            'locate': self.chk_locate.isChecked(),
+            'radiusSearch': (
+                {
+                    'defaultRadius': self.sp_radius.value(),
+                    'radii': sorted(set(RADIUS_CHOICES + [self.sp_radius.value()])),
+                }
+                if self.chk_radius.isChecked() else None
+            ),
+            'shareLink': self.chk_share.isChecked(),
+            'language': self.cb_language.currentData(),
+            'languageToggle': self.chk_lang_toggle.isChecked(),
             'popupShowEmpty': self.chk_popup_show_empty.isChecked(),
             'popupLinkifyUrls': self.chk_popup_linkify.isChecked(),
             'popupLinks': links,
@@ -532,3 +625,74 @@ class DisplayTab(QWidget):
             ),
         }
         return display
+
+    # ------------------------------------------------------------
+    def _state_widgets(self):
+        """Every setting on this tab, by a stable key, for get_state()/
+        set_state(). A new setting only needs a line here to be kept
+        between sessions."""
+        return {
+            'size_fullscreen': self.rb_fullscreen,
+            'size_fixed': self.rb_fixed,
+            'width': self.sp_width,
+            'height': self.sp_height,
+            'responsive': self.chk_responsive,
+            'view_autofit': self.rb_autofit,
+            'view_canvas': self.rb_canvas,
+            'view_manual': self.rb_manual,
+            'lat': self.sp_lat,
+            'lng': self.sp_lng,
+            'init_zoom': self.sp_init_zoom,
+            'min_zoom': self.sp_min_zoom,
+            'max_zoom': self.sp_max_zoom,
+            'basemap_enabled': self.chk_basemap,
+            'basemap': self.cb_basemap,
+            'filter_enabled': self.chk_filter,
+            'scalebar': self.chk_scalebar,
+            'scalebar_position': self.cb_scalebar_pos,
+            'locate': self.chk_locate,
+            'radius': self.chk_radius,
+            'radius_default': self.sp_radius,
+            'share': self.chk_share,
+            'language': self.cb_language,
+            'language_toggle': self.chk_lang_toggle,
+            'opacity_override': self.chk_opacity_override,
+            'opacity': self.sl_opacity,
+            'popup_click': self.rb_popup_click,
+            'popup_hover': self.rb_popup_hover,
+            'popup_none': self.rb_popup_none,
+            'attribution': self.le_attribution,
+            'popup_show_empty': self.chk_popup_show_empty,
+            'popup_linkify': self.chk_popup_linkify,
+            'links': self.chk_links,
+            'link_gmap': self.chk_link_gmap,
+            'link_sv': self.chk_link_sv,
+            'link_dir': self.chk_link_dir,
+            'link_gsi': self.chk_link_gsi,
+            'link_name': self.chk_link_name,
+            'link_name_field': self.cb_name_field,
+            'search': self.chk_search,
+            'feature_table': self.chk_feature_table,
+            'thinning': self.chk_thinning,
+            'thin_zoom': self.sp_thin_zoom,
+            'thin_grid': self.sp_thin_grid,
+            'selection': self.chk_selection,
+            'force_text_codes': self.chk_force_text_codes,
+            'pretty_geojson': self.chk_pretty_geojson,
+        }
+
+    def get_state(self):
+        return widgets_state(self._state_widgets())
+
+    def set_state(self, state):
+        apply_widgets_state(self._state_widgets(), state)
+        # Checkbox-driven enabling follows from the toggled signals, but
+        # only when a value actually changed - refresh it explicitly.
+        for update in (
+            self._update_fixed_enabled, self._update_manual_enabled,
+            self._update_basemap_enabled, self._update_scalebar_enabled,
+            self._update_radius_enabled, self._update_opacity_enabled,
+            self._update_links_enabled, self._update_thinning_enabled,
+            self._update_selection_enabled,
+        ):
+            update()

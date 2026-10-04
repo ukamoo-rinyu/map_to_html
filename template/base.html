@@ -12,21 +12,23 @@
   <header id="app-header">
     <h1 id="app-title">Facility Search</h1>
     <div id="search-panel" class="fag-hidden">
-      <input type="text" id="search-input" placeholder="Search by facility name…">
+      <input type="text" id="search-input" placeholder="Search by facility name…" data-i18n-placeholder="search.placeholder">
       <div id="search-dropdown">
         <span id="search-count" class="fag-hidden"></span>
         <ul id="search-results" class="fag-hidden"></ul>
       </div>
     </div>
+    <!-- 日本語/EN switch (i18n.js), only when the plugin turned it on. -->
+    <button id="lang-toggle" class="fag-hidden" type="button" data-i18n="lang.switch" data-i18n-title="lang.switchTitle"></button>
   </header>
   <!-- Filter bar (filter.js) - one checklist dropdown per filter field,
        shown only when the plugin's 表示設定 tab turned it on. -->
   <div id="filter-bar" class="fag-hidden">
-    <button id="filter-bar-toggle" type="button" aria-expanded="false">Filter ▾</button>
+    <button id="filter-bar-toggle" type="button" aria-expanded="false" data-i18n="filter.toggle">Filter ▾</button>
     <div id="filter-bar-items"></div>
     <div id="filter-bar-tail">
       <span id="filter-bar-count"></span>
-      <button id="filter-bar-reset" type="button">Reset</button>
+      <button id="filter-bar-reset" type="button" data-i18n="filter.reset">Reset</button>
     </div>
   </div>
   <div id="app-body">
@@ -39,19 +41,21 @@
       <div id="loading-overlay">
         <div id="loading-box">
           <div id="loading-spinner"></div>
-          <div id="loading-text">Loading…</div>
+          <div id="loading-text" data-i18n="loading">Loading…</div>
         </div>
       </div>
       <!-- Shown whenever grid thinning is actually hiding something.
            Silently dropping features reads as missing data, so this is
            not optional (spec item 6-B). -->
-      <div id="thinning-notice" class="fag-hidden">
+      <div id="thinning-notice" class="fag-hidden" data-i18n="thinning.notice">
         Showing some features only — zoom in to see them all
       </div>
+      <!-- Short messages from the share/locate buttons (main.js fagToast). -->
+      <div id="fag-toast" class="fag-hidden" role="status" aria-live="polite"></div>
       <div id="layer-panel" class="fag-hidden">
         <div id="layer-panel-header">
-          <span id="layer-panel-title">Layers</span>
-          <button id="layer-panel-toggle" type="button" aria-label="Toggle layer panel">▾</button>
+          <span id="layer-panel-title" data-i18n="layers.title">Layers</span>
+          <button id="layer-panel-toggle" type="button" aria-label="Toggle layer panel" data-i18n-aria="layers.toggle">▾</button>
         </div>
         <ul id="layer-panel-list"></ul>
       </div>
@@ -61,21 +65,21 @@
              itself is collapsed. -->
         <div id="selection-bar" class="fag-hidden">
           <div id="selection-bar-row">
-            <button id="selection-rect-btn" type="button" title="Drag a rectangle on the map to select features">▭ Select area</button>
+            <button id="selection-rect-btn" type="button" title="Drag a rectangle on the map to select features" data-i18n="selection.rect" data-i18n-title="selection.rectTitle">▭ Select area</button>
             <span id="selection-count">None selected</span>
-            <button id="selection-clear-btn" type="button" title="Clear the selection">Clear</button>
+            <button id="selection-clear-btn" type="button" title="Clear the selection" data-i18n="selection.clear" data-i18n-title="selection.clearTitle">Clear</button>
           </div>
           <div id="selection-bar-row-2">
-            <button id="export-csv-selected" type="button" title="Export the selected features as CSV">CSV (selected)</button>
-            <button id="export-csv-all" type="button" title="Export every feature of the layer shown in the table as CSV">CSV (layer)</button>
-            <button id="export-geojson-selected" type="button" title="Export the selected features as GeoJSON">GeoJSON (selected)</button>
-            <button id="export-geojson-all" type="button" title="Export every feature of the layer shown in the table as GeoJSON">GeoJSON (layer)</button>
+            <button id="export-csv-selected" type="button" title="Export the selected features as CSV" data-i18n="selection.csvSelected" data-i18n-title="selection.csvSelectedTitle">CSV (selected)</button>
+            <button id="export-csv-all" type="button" title="Export every feature of the layer shown in the table as CSV" data-i18n="selection.csvAll" data-i18n-title="selection.csvAllTitle">CSV (layer)</button>
+            <button id="export-geojson-selected" type="button" title="Export the selected features as GeoJSON" data-i18n="selection.geojsonSelected" data-i18n-title="selection.geojsonSelectedTitle">GeoJSON (selected)</button>
+            <button id="export-geojson-all" type="button" title="Export every feature of the layer shown in the table as GeoJSON" data-i18n="selection.geojsonAll" data-i18n-title="selection.geojsonAllTitle">GeoJSON (layer)</button>
           </div>
         </div>
         <div id="feature-table-header">
           <select id="feature-table-layer-select"></select>
           <span id="feature-table-count"></span>
-          <button id="feature-table-toggle" type="button" aria-label="Toggle feature table">▾</button>
+          <button id="feature-table-toggle" type="button" aria-label="Toggle feature table" data-i18n-aria="table.toggle">▾</button>
         </div>
         <!-- Hand-rolled virtual scroll (v0.3.0 task 3-2, see point-list.js):
              one scrolling element for both axes so the sticky header row
