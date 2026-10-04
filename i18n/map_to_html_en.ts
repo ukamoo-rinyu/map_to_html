@@ -237,466 +237,604 @@ filter fields) to the other layers in the same group.</translation>
 <context>
     <name>DisplayTab</name>
     <message>
-        <location filename="../ui/display_tab.py" line="36" />
+        <location filename="../ui/display_tab.py" line="45" />
         <source>国土地理院 淡色地図（既定）</source>
         <translation>GSI (Japan) pale map (default)</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="37" />
+        <location filename="../ui/display_tab.py" line="46" />
         <source>国土地理院 標準地図</source>
         <translation>GSI (Japan) standard map</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="38" />
+        <location filename="../ui/display_tab.py" line="47" />
         <source>国土地理院 航空写真</source>
         <translation>GSI (Japan) aerial photos</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="39" />
+        <location filename="../ui/display_tab.py" line="48" />
         <source>OpenStreetMap 標準</source>
         <translation>OpenStreetMap standard</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="40" />
+        <location filename="../ui/display_tab.py" line="49" />
         <source>CARTO Light（明るい配色・要APIキー）</source>
         <translation>CARTO Light (light colors, API key required)</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="62" />
-        <source>画面サイズ・レスポンシブ</source>
-        <translation>Screen size / responsive</translation>
+        <location filename="../ui/display_tab.py" line="130" />
+        <source>説明</source>
+        <translation>Explanation</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="64" />
-        <source>画面いっぱいに表示（フルスクリーン相当）</source>
-        <translation>Fill the screen (fullscreen)</translation>
+        <location filename="../ui/display_tab.py" line="166" />
+        <source>地図の基本</source>
+        <translation>Map basics</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="66" />
-        <source>固定サイズで表示</source>
+        <location filename="../ui/display_tab.py" line="166" />
+        <source>地図の大きさ、開いたときに表示する範囲、拡大・縮小できる範囲、背景地図を設定します。
+項目にマウスを乗せると、ここに説明が出ます。</source>
+        <translation>The map size, the area shown when it opens, how far it can zoom, and the basemap.
+Hover over a setting to see its explanation here.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="170" />
+        <source>画面サイズ</source>
+        <translation>Size</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="172" />
+        <source>画面いっぱい</source>
+        <translation>Fill the window</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="174" />
+        <source>固定サイズ</source>
         <translation>Fixed size</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="74" />
+        <location filename="../ui/display_tab.py" line="185" />
         <source>幅(px):</source>
         <translation>Width (px):</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="79" />
+        <location filename="../ui/display_tab.py" line="186" />
         <source>高さ(px):</source>
         <translation>Height (px):</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="90" />
-        <source>スマートフォン対応（レスポンシブ）</source>
-        <translation>Smartphone support (responsive)</translation>
+        <location filename="../ui/display_tab.py" line="187" />
+        <source>スマートフォン対応</source>
+        <translation>Smartphone layout</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="96" />
-        <source>初期表示位置・ズーム</source>
-        <translation>Initial view position / zoom</translation>
+        <location filename="../ui/display_tab.py" line="193" />
+        <source>地図をブラウザのウィンドウいっぱいに表示します。通常はこちらを選びます。</source>
+        <translation>The map fills the browser window. Usually the right choice.</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="98" />
-        <source>データの範囲に自動フィット</source>
-        <translation>Auto-fit to data extent</translation>
+        <location filename="../ui/display_tab.py" line="195" />
+        <source>地図を指定した幅・高さの枠の中に表示します。ほかのページに埋め込むときなどに使います。</source>
+        <translation>The map is shown in a box of the given width and height, e.g. for embedding in another page.</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="100" />
-        <source>現在のQGIS画面の表示範囲を初期表示にする</source>
-        <translation>Use the current QGIS map extent as the initial view</translation>
+        <location filename="../ui/display_tab.py" line="198" />
+        <source>スマートフォンなど幅の狭い画面では、検索欄やパネルの配置を自動で切り替えます。</source>
+        <translation>On narrow screens such as smartphones, the search box and panels are rearranged automatically.</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="101" />
-        <source>HTMLの地図とQGISの画面では縦横比が異なるため、表示範囲は完全には一致しません。指定した範囲が必ず収まるように表示されます。</source>
-        <translation>The HTML map and the QGIS canvas have different aspect ratios, so the view will not match exactly. The map is fitted so the whole extent is always visible.</translation>
+        <location filename="../ui/display_tab.py" line="202" />
+        <source>初期表示</source>
+        <translation>Initial view</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="105" />
-        <source>中心座標・ズームレベルを手動指定</source>
-        <translation>Manually set center coordinates / zoom level</translation>
+        <location filename="../ui/display_tab.py" line="204" />
+        <source>データの範囲に合わせる</source>
+        <translation>Fit the data</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="115" />
+        <location filename="../ui/display_tab.py" line="206" />
+        <source>今のQGIS画面の範囲</source>
+        <translation>Current QGIS map extent</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="207" />
+        <source>中心とズームを指定</source>
+        <translation>Set center and zoom</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="225" />
         <source>緯度:</source>
         <translation>Latitude:</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="121" />
+        <location filename="../ui/display_tab.py" line="225" />
         <source>経度:</source>
         <translation>Longitude:</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="127" />
+        <location filename="../ui/display_tab.py" line="226" />
         <source>ズーム:</source>
         <translation>Zoom:</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="142" />
-        <source>最小ズームレベル:</source>
-        <translation>Minimum zoom level:</translation>
+        <location filename="../ui/display_tab.py" line="236" />
+        <source>ズームの範囲:</source>
+        <translation>Zoom range:</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="146" />
-        <source>最大ズームレベル:</source>
-        <translation>Maximum zoom level:</translation>
+        <location filename="../ui/display_tab.py" line="239" />
+        <source>出力するすべてのレイヤーが収まるように、地図の表示範囲を自動で決めます。</source>
+        <translation>The view is chosen automatically so that every exported layer fits.</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="151" />
-        <source>背景地図（ベースマップ）</source>
+        <location filename="../ui/display_tab.py" line="241" />
+        <source>HTMLを生成した時点のQGISの表示範囲で地図を開きます。HTMLの地図とQGISの画面は縦横比が違うため完全には一致しませんが、指定した範囲が必ず収まるように表示されます。</source>
+        <translation>The map opens at the QGIS map extent at the time the HTML is generated. The aspect ratios differ, so it will not match exactly, but the whole extent is always visible.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="245" />
+        <source>地図の中心の緯度・経度と、ズームレベル（数字が大きいほど拡大）を直接指定します。</source>
+        <translation>Enter the latitude/longitude of the map center and the zoom level (larger is closer).</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="248" />
+        <source>ズームの範囲</source>
+        <translation>Zoom range</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="248" />
+        <source>閲覧者が縮小・拡大できる範囲です。左が最小（5でおよそ日本全体）、右が最大（19でおよそ建物1軒）です。</source>
+        <translation>How far readers can zoom out and in. Left is the minimum (5 shows roughly all of Japan), right the maximum (19 shows roughly a single building).</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="252" />
+        <source>背景地図</source>
         <translation>Basemap</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="157" />
-        <source>背景地図を表示する</source>
-        <translation>Show basemap</translation>
+        <location filename="../ui/display_tab.py" line="257" />
+        <source>背景地図を表示</source>
+        <translation>Show a basemap</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="164" />
-        <source>地図タイル:</source>
-        <translation>Map tiles:</translation>
+        <location filename="../ui/display_tab.py" line="269" />
+        <source>地図の下に敷く背景地図です。データ設定タブで背景タイルのレイヤーを追加している場合は、オフのままで構いません。OpenStreetMap はファイルとして開いた地図では表示されないことがあり、CARTO は本格的に使うには API キーが必要です。</source>
+        <translation>A background map under your layers. Leave it off if you added a background tile layer on the Data tab. OpenStreetMap may not show when the map is opened as a file, and CARTO needs an API key for real use.</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="177" />
-        <source>フィルターバー（絞り込み）</source>
+        <location filename="../ui/display_tab.py" line="277" />
+        <source>検索・絞り込み</source>
+        <translation>Search &amp; filter</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="277" />
+        <source>閲覧者が地物を探すための機能（検索バー・一覧表・フィルターバー）を設定します。</source>
+        <translation>Tools readers use to find features: the search bar, the feature table and the filter bar.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="280" />
+        <source>検索・一覧表</source>
+        <translation>Search &amp; table</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="284" />
+        <source>検索バー</source>
+        <translation>Search bar</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="287" />
+        <source>地物の一覧表</source>
+        <translation>Feature table</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="291" />
+        <source>画面上部に検索欄を出します。施設名などを入力すると、表示中のレイヤーから候補が出て、クリックするとその場所へ移動します。検索の対象は、ポップアップに表示する項目です。</source>
+        <translation>A search box at the top. Typing a facility name etc. lists matches from the visible layers; clicking one moves the map there. The fields shown in popups are searched.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="295" />
+        <source>地図の左下に、レイヤーごとの地物の一覧表を出します。見出しのクリックで並べ替え、行のクリックでその地物へ移動します。</source>
+        <translation>A table of each layer's features in the bottom-left corner. Click a heading to sort, or a row to go to that feature.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="299" />
+        <source>フィルターバー</source>
         <translation>Filter bar</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="179" />
-        <source>フィルターバーを表示する（項目ごとに値を選んで、該当する地物だけを表示）</source>
-        <translation>Show the filter bar (pick values per field to show only matching features)</translation>
+        <location filename="../ui/display_tab.py" line="306" />
+        <source>絞り込む項目は、データ設定タブ →「ポップアップ・フィルター項目」の「設定…」で選びます。</source>
+        <translation>Choose the fields to filter by on the Data tab, with "Settings…" under popup/filter fields.</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="183" />
-        <source>絞り込みに使う項目は、データ設定タブの各レイヤーの「ポップアップ・フィルター項目」→「設定…」で、「フィルター」列にチェックして選びます。どれか1つのレイヤーで選べば、同じ項目名を持つ他のレイヤーもまとめて絞り込まれます。</source>
-        <translation>The fields to filter by are picked on the Data tab: "Popup / filter fields" &gt; "Settings…", then tick them in the "Filter" column. Ticking a field on one layer also filters every other layer that has a field of the same name.</translation>
+        <location filename="../ui/display_tab.py" line="312" />
+        <source>ヘッダーの下に、項目ごとのチェックリスト（区・種別など）を並べ、選んだ値の地物だけを表示します。地図・ラベル・一覧表・検索・データ出力すべてが連動します。どれか1つのレイヤーで項目を選べば、同じ項目名を持つ他のレイヤーもまとめて絞り込まれます。</source>
+        <translation>Checklists per field (ward, type, ...) under the header; only features with the ticked values are shown. The map, labels, table, search and export all follow it. Picking a field on one layer also filters every other layer with a field of the same name.</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="192" />
-        <source>スケールバー</source>
-        <translation>Scale bar</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="194" />
-        <source>スケールバーを表示する</source>
-        <translation>Show scale bar</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="198" />
-        <source>表示位置:</source>
-        <translation>Position:</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="201" />
-        <source>左下</source>
-        <translation>Bottom left</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="202" />
-        <source>右下</source>
-        <translation>Bottom right</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="211" />
+        <location filename="../ui/display_tab.py" line="321" />
         <source>地図上のボタン</source>
         <translation>Map buttons</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="213" />
-        <source>現在地ボタンを表示する（スマートフォンなどで、今いる場所を地図に表示）</source>
-        <translation>Show a "my location" button (shows where you are, e.g. on a smartphone)</translation>
+        <location filename="../ui/display_tab.py" line="321" />
+        <source>地図の上に置くボタンや目盛りを設定します。初期値はスケールバーだけがオンです。</source>
+        <translation>Buttons and the scale shown on the map. By default only the scale bar is on.</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="216" />
-        <source>ブラウザが位置情報の利用を確認します。位置情報は閲覧者の端末の中だけで使われ、
-どこにも送信されません。https:// で公開したページか、端末上のファイルとして
-開いたときに使えます（http:// のページではブラウザが許可しません）。</source>
-        <translation>The browser asks the reader before sharing their location. It is used only on the
-reader's device and is never sent anywhere. It works for pages published over
-https:// or opened as a file on the device (browsers block it on http:// pages).</translation>
+        <location filename="../ui/display_tab.py" line="324" />
+        <source>スケールバー</source>
+        <translation>Scale bar</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="222" />
-        <source>半径検索を使えるようにする（地点を決めて、指定した半径内の地物を近い順に一覧表示）</source>
-        <translation>Enable radius search (pick a point and list features within a radius, nearest first)</translation>
+        <location filename="../ui/display_tab.py" line="330" />
+        <source>位置:</source>
+        <translation>Position:</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="225" />
-        <source>中心は、地図のクリック・現在地・地図の中心から選べます。
-地図に表示中のレイヤー（ポップアップ表示がオンのもの）が対象で、
-フィルターバーの絞り込みにも従います。線・面は頂点の平均の位置で測ります。</source>
-        <translation>The center can be a map click, the reader's location or the map center.
-Layers shown on the map (with popups on) are searched, and the filter bar
-is respected. Lines and polygons are measured from the mean of their vertices.</translation>
+        <location filename="../ui/display_tab.py" line="333" />
+        <source>左下</source>
+        <translation>Bottom left</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="232" />
-        <source>最初に選ばれている半径:</source>
-        <translation>Initial radius:</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="241" />
-        <source>（閲覧者は 250m／500m／1km／2km からも選べます）</source>
-        <translation>(readers can also choose 250 m / 500 m / 1 km / 2 km)</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="245" />
-        <source>リンク共有ボタンを表示する（今の表示位置・レイヤー・絞り込みをURLにしてコピー）</source>
-        <translation>Show a share-link button (copies a URL of the current view, layers and filters)</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="248" />
-        <source>コピーしたURLを開くと、同じ場所・同じレイヤー・同じ絞り込みの状態で地図が開きます。
-ファイルとして開いた地図のURLは、同じファイルを開ける人（共有フォルダなど）だけが使えます。</source>
-        <translation>Opening the copied URL shows the map at the same place, with the same layers and filters.
-For a map opened as a file, the URL only works for people who can open that same file (e.g. a shared folder).</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="256" />
-        <source>出力HTMLの表示言語</source>
-        <translation>Language of the exported page</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="259" />
-        <source>最初に表示する言語:</source>
-        <translation>Initial language:</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="262" />
-        <source>閲覧者のブラウザに合わせる（日本語以外は英語）</source>
-        <translation>Follow the reader's browser (English unless Japanese)</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="263" />
-        <source>日本語</source>
-        <translation>Japanese</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="264" />
-        <source>英語（English）</source>
-        <translation>English</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="269" />
-        <source>日本語／英語の切り替えボタンを表示する</source>
-        <translation>Show a Japanese/English switch button</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="272" />
-        <source>ボタンや案内の文言が切り替わります。レイヤー名・項目名・値は、QGISのデータのまま表示されます。</source>
-        <translation>Buttons and messages change language. Layer names, field names and values are shown as they are in the QGIS data.</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="279" />
-        <source>不透明度</source>
-        <translation>Opacity</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="282" />
-        <source>塗りの不透明度を上書きする（QGISの設定を無視して一律適用）</source>
-        <translation>Override fill opacity (apply to all, ignoring QGIS settings)</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="287" />
-        <source>不透明度:</source>
-        <translation>Opacity:</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="299" />
-        <source>ポリゴンの塗りとマーカーの塗りに適用されます。枠線の色・不透明度は変更しません。</source>
-        <translation>Applies to polygon fills and marker fills. Outline color and opacity are not changed.</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="305" />
-        <source>ポップアップ・ホバー動作・帰属表示</source>
-        <translation>Popup / hover behavior / attribution</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="307" />
-        <source>クリック時にポップアップを表示（既定、ホバー時はハイライトのみ）</source>
-        <translation>Show popup on click (default; hover only highlights)</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="309" />
-        <source>マウスを乗せた（ホバー）時にポップアップも表示</source>
-        <translation>Also show popup on hover</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="310" />
-        <source>ホバー（マウスオーバー）の効果なし（クリックのみ）</source>
-        <translation>No hover effect (click only)</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="320" />
-        <source>帰属表示（自由入力）:</source>
-        <translation>Attribution (free text):</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="322" />
-        <source>例: ○○市 提供データ</source>
-        <translation>e.g. Data provided by XX City</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="325" />
-        <source>背景地図（OpenStreetMap／CARTO／国土地理院等）の帰属表示に追記されます。既存の表示は消えません。</source>
-        <translation>Appended to the basemap’s (OpenStreetMap/CARTO/GSI etc.) attribution. The existing attribution is not removed.</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="332" />
-        <source>ポップアップの内容</source>
-        <translation>Popup content</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="335" />
-        <source>値が空の項目も表示する（既定：空の項目は表示しない）</source>
-        <translation>Also show empty fields (default: empty fields are hidden)</translation>
+        <location filename="../ui/display_tab.py" line="333" />
+        <source>右下</source>
+        <translation>Bottom right</translation>
     </message>
     <message>
         <location filename="../ui/display_tab.py" line="339" />
-        <source>http で始まる値をリンクにする（画像URLは画像として表示）</source>
-        <translation>Turn values starting with http into links (image URLs are shown as images)</translation>
+        <source>地図の隅に縮尺の目盛り（例: 500 m）を表示します。</source>
+        <translation>A scale (e.g. 500 m) in a corner of the map.</translation>
     </message>
     <message>
         <location filename="../ui/display_tab.py" line="343" />
-        <source>表示する項目と並び順は「データ設定」タブのレイヤーごとの「設定…」で指定します。項目名はQGISのフィールド別名（エイリアス）があればそちらを表示します。</source>
-        <translation>Choose which fields to show, and their order, with each layer's "Settings…" on the Data tab. Field aliases set in QGIS are used as field names when available.</translation>
+        <source>便利ボタン</source>
+        <translation>Extra buttons</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="347" />
+        <source>現在地ボタン</source>
+        <translation>My location button</translation>
     </message>
     <message>
         <location filename="../ui/display_tab.py" line="350" />
+        <source>半径検索</source>
+        <translation>Radius search</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="358" />
+        <source>最初の半径:</source>
+        <translation>Initial radius:</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="360" />
+        <source>リンク共有ボタン</source>
+        <translation>Share link button</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="365" />
+        <source>押すと閲覧者の今いる場所を、青い点と誤差の円で地図に表示します。ブラウザが位置情報の利用を確認します。位置情報は閲覧者の端末の中だけで使われ、どこにも送信されません。https:// で公開したページか、端末上のファイルとして開いたときに使えます。</source>
+        <translation>Shows where the reader is, as a blue dot with an accuracy circle. The browser asks before sharing the location, which stays on the reader's device and is never sent anywhere. Works for pages published over https:// or opened as a file on the device.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="369" />
+        <source>中心（地図のクリック・現在地・地図の中心）と半径を決めると、範囲内の地物を近い順に一覧表示します。閲覧者は 250m／500m／1km／2km からも半径を選べます。地図に表示中のレイヤー（ポップアップ表示がオンのもの）が対象で、フィルターバーにも従います。線・面は頂点の平均の位置で測ります。</source>
+        <translation>Pick a center (a map click, the reader's location or the map center) and a radius to list the features within it, nearest first. Readers can also choose 250 m / 500 m / 1 km / 2 km. Layers shown on the map (with popups on) are searched, and the filter bar is respected. Lines and polygons are measured from the mean of their vertices.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="374" />
+        <source>今の表示位置・レイヤー・絞り込みをURLにしてコピーします。コピーしたURLを開くと同じ表示になります。ファイルとして開いた地図のURLは、同じファイルを開ける人（共有フォルダなど）だけが使えます。</source>
+        <translation>Copies a URL of the current view, layers and filters; opening it shows the same view. For a map opened as a file, the URL only works for people who can open that same file (e.g. a shared folder).</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="382" />
+        <source>ポップアップ</source>
+        <translation>Popups</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="382" />
+        <source>地物をクリックしたときに出る吹き出し（ポップアップ）の出し方と中身を設定します。表示する項目と並び順は、データ設定タブの「設定…」で選びます。</source>
+        <translation>How the popup shown for a feature opens and what it contains. Which fields appear, and their order, is chosen on the Data tab with "Settings…".</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="386" />
+        <source>出し方</source>
+        <translation>Opening</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="388" />
+        <source>クリックで表示</source>
+        <translation>Open on click</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="390" />
+        <source>マウスを乗せたときも表示</source>
+        <translation>Also open on hover</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="391" />
+        <source>マウスを乗せても何もしない</source>
+        <translation>No hover effect</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="400" />
+        <source>クリックするとポップアップが開きます。マウスを乗せたときは、地物が強調表示されるだけです。</source>
+        <translation>A click opens the popup; hovering only highlights the feature.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="403" />
+        <source>マウスを乗せただけでポップアップが開き、離すと閉じます。クリックでも開けます。</source>
+        <translation>Hovering opens the popup and moving away closes it. A click also opens it.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="406" />
+        <source>マウスを乗せても強調表示しません。ポップアップはクリックで開きます。</source>
+        <translation>Hovering does not highlight anything. A click opens the popup.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="409" />
+        <source>中身</source>
+        <translation>Content</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="411" />
+        <source>空欄の項目も表示</source>
+        <translation>Show empty fields</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="413" />
+        <source>URLをリンクにする</source>
+        <translation>Make URLs links</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="418" />
+        <source>オフにすると、値が空の項目はポップアップに出しません。項目名はQGISの別名（エイリアス）があればそちらを使います。</source>
+        <translation>When off, fields with no value are left out of the popup. Field aliases set in QGIS are used as names when available.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="421" />
+        <source>http で始まる値をクリックできるリンクにします。画像のURLは画像として表示します。</source>
+        <translation>Values starting with http become clickable links; image URLs are shown as images.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="425" />
         <source>地図リンク</source>
         <translation>Map links</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="352" />
-        <source>ポップアップに地図リンクを表示する</source>
-        <translation>Show map links in popups</translation>
+        <location filename="../ui/display_tab.py" line="427" />
+        <source>地図リンクを表示</source>
+        <translation>Show map links</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="359" />
-        <source>Googleマップで開く</source>
-        <translation>Open in Google Maps</translation>
+        <location filename="../ui/display_tab.py" line="433" />
+        <source>Googleマップ</source>
+        <translation>Google Maps</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="361" />
-        <source>ストリートビューで見る</source>
-        <translation>View in Street View</translation>
+        <location filename="../ui/display_tab.py" line="435" />
+        <source>ストリートビュー</source>
+        <translation>Street View</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="363" />
+        <location filename="../ui/display_tab.py" line="437" />
         <source>ここへの経路</source>
         <translation>Directions to here</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="364" />
-        <source>地理院地図で開く（空中写真・災害情報などの確認に便利）</source>
-        <translation>Open in GSI Maps (handy for aerial photos, disaster info, etc.)</translation>
+        <location filename="../ui/display_tab.py" line="438" />
+        <source>地理院地図</source>
+        <translation>GSI Maps</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="370" />
+        <location filename="../ui/display_tab.py" line="443" />
         <source>施設名でGoogle検索</source>
         <translation>Google search by facility name</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="374" />
-        <source>名称に使う項目:</source>
-        <translation>Field to use as name:</translation>
+        <location filename="../ui/display_tab.py" line="452" />
+        <source>名称の項目:</source>
+        <translation>Name field:</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="391" />
-        <source>検索・一覧表示</source>
-        <translation>Search / list view</translation>
+        <location filename="../ui/display_tab.py" line="456" />
+        <source>ポップアップの下に、その地点を外部の地図で開くリンクを並べます。ポップアップは幅が狭いので、使うものだけ選んでください。</source>
+        <translation>Links at the bottom of the popup that open the location in other map services. Popups are narrow, so pick only the ones you need.</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="393" />
-        <source>検索バーを表示する（施設名などで検索し、結果をクリックしてズーム表示）</source>
-        <translation>Show search bar (search by facility name etc.; click a result to zoom in)</translation>
+        <location filename="../ui/display_tab.py" line="459" />
+        <source>その地点をGoogleマップで開きます。</source>
+        <translation>Opens the location in Google Maps.</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="396" />
-        <source>レイヤー内地物の一覧表を表示する</source>
-        <translation>Show a feature list table for each layer</translation>
+        <location filename="../ui/display_tab.py" line="460" />
+        <source>その地点のストリートビューを開きます。</source>
+        <translation>Opens Street View at the location.</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="402" />
+        <location filename="../ui/display_tab.py" line="462" />
+        <source>Googleマップで、閲覧者の現在地からその地点までの経路を調べます。</source>
+        <translation>Finds a route in Google Maps from the reader's location to this point.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="464" />
+        <source>その地点を国土地理院の地理院地図で開きます。空中写真や災害情報の確認に便利です。</source>
+        <translation>Opens the location in GSI Maps (Geospatial Information Authority of Japan), handy for aerial photos and disaster information.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="466" />
+        <source>「名称の項目」で選んだ項目の値（施設名など）でGoogle検索します。</source>
+        <translation>Searches Google for the value of the chosen name field (e.g. the facility name).</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="470" />
+        <source>帰属表示</source>
+        <translation>Attribution</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="473" />
+        <source>例: ○○市 提供データ</source>
+        <translation>e.g. Data provided by XX City</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="476" />
+        <source>地図の右下の出典表示に、この文を書き足します。背景地図の出典表示は消えません。</source>
+        <translation>Adds this text to the credits in the map's bottom-right corner. The basemap's own credit stays.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="483" />
+        <source>見た目</source>
+        <translation>Appearance</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="483" />
+        <source>塗りの濃さを一律にそろえる設定と、縮小したときに密集した点を間引く設定です。</source>
+        <translation>Making all fills the same opacity, and thinning out crowded points when zoomed out.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="486" />
+        <source>塗りの不透明度</source>
+        <translation>Fill opacity</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="488" />
+        <source>不透明度を一律にする</source>
+        <translation>Use one opacity for all fills</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="504" />
+        <source>QGISの設定に関係なく、ポリゴンの塗りとマーカーの塗りを同じ濃さにします。枠線の色・不透明度は変えません。</source>
+        <translation>Gives every polygon and marker fill this opacity, whatever is set in QGIS. Outline color and opacity are not changed.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="508" />
         <source>広域表示時の間引き</source>
         <translation>Thinning when zoomed out</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="405" />
-        <source>広域表示のときポイントを間引いて表示する</source>
+        <location filename="../ui/display_tab.py" line="510" />
+        <source>縮小時に点を間引く</source>
         <translation>Thin out points when zoomed out</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="407" />
-        <source>指定したズームより広域では、画面を格子に区切って1マスにつき1件だけ
-描画し、密集した点が団子にならないようにします。
-※間引くのは「描画」だけです。検索・一覧表・CSV出力には全件が
-　含まれますし、拡大すれば全件表示に戻ります。</source>
-        <translation>Below the given zoom, the screen is divided into a grid and only one point
-per cell is drawn, so dense points do not clump together.
-* Only drawing is thinned. Search, the feature table and CSV export still
-  include every feature, and zooming in shows them all again.</translation>
+        <location filename="../ui/display_tab.py" line="519" />
+        <source>このズーム未満:</source>
+        <translation>Below zoom:</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="417" />
-        <source>このズーム未満で間引く:</source>
-        <translation>Thin out below this zoom:</translation>
-    </message>
-    <message>
-        <location filename="../ui/display_tab.py" line="422" />
+        <location filename="../ui/display_tab.py" line="520" />
         <source>格子の大きさ(px):</source>
         <translation>Grid cell size (px):</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="429" />
-        <source>間引いている間は「一部の地物のみ表示中」と画面に表示されます。</source>
-        <translation>While thinning is active, the map shows a notice that only some features are displayed.</translation>
+        <location filename="../ui/display_tab.py" line="525" />
+        <source>指定したズームより縮小しているときは、画面を格子に区切って1マスにつき1件だけ描き、密集した点が団子にならないようにします。間引くのは描画だけで、検索・一覧表・CSV出力には全件が含まれます。間引いている間は「一部の地物のみ表示中」と画面に出ます。格子を大きくするほど多く間引きます。</source>
+        <translation>Below the given zoom, the screen is divided into a grid and only one point per cell is drawn, so crowded points do not clump. Only drawing is thinned; search, the table and CSV export still include every feature. A notice is shown while thinning. A larger grid thins out more.</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="436" />
+        <location filename="../ui/display_tab.py" line="534" />
+        <source>言語</source>
+        <translation>Language</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="534" />
+        <source>出力したHTMLの、ボタンや案内の言語を設定します。レイヤー名・項目名・値は、QGISのデータのまま表示されます。</source>
+        <translation>The language of the exported page's buttons and messages. Layer names, field names and values are shown as they are in the QGIS data.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="538" />
+        <source>出力HTMLの表示言語</source>
+        <translation>Language of the exported page</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="542" />
+        <source>閲覧者のブラウザに合わせる（日本語以外は英語）</source>
+        <translation>Follow the reader's browser (English unless Japanese)</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="543" />
+        <source>日本語</source>
+        <translation>Japanese</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="544" />
+        <source>英語（English）</source>
+        <translation>English</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="547" />
+        <source>最初の言語:</source>
+        <translation>Initial language:</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="549" />
+        <source>日本語／英語の切り替えボタン</source>
+        <translation>Japanese/English switch</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="553" />
+        <source>最初の言語</source>
+        <translation>Initial language</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="553" />
+        <source>地図を開いたときの言語です。「ブラウザに合わせる」なら、日本語のブラウザでは日本語、それ以外では英語で表示します。</source>
+        <translation>The language the map opens in. "Follow the browser" shows Japanese in a Japanese browser and English otherwise.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="556" />
+        <source>地図の右上に「EN／日本語」ボタンを出します。閲覧者が選んだ言語は、そのブラウザで次回も使われます。</source>
+        <translation>An "EN / 日本語" button at the top right. The language a reader picks is remembered in their browser.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="563" />
+        <source>データ出力</source>
+        <translation>Data export</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="563" />
+        <source>閲覧者が地図上で地物を選び、CSV・GeoJSONファイルとして保存できるようにする設定です。</source>
+        <translation>Lets readers select features on the map and save them as CSV or GeoJSON files.</translation>
+    </message>
+    <message>
+        <location filename="../ui/display_tab.py" line="566" />
         <source>地物の選択・データ出力</source>
         <translation>Feature selection / data export</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="439" />
-        <source>地物の選択とCSV/GeoJSON出力を使えるようにする</source>
-        <translation>Enable feature selection and CSV/GeoJSON export</translation>
+        <location filename="../ui/display_tab.py" line="568" />
+        <source>地物の選択とCSV・GeoJSON出力</source>
+        <translation>Feature selection and CSV/GeoJSON export</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="441" />
-        <source>クリック／Ctrl+クリック／範囲（矩形）で地物を選択し、選択分または
-レイヤー全体をCSV・GeoJSONでダウンロードできるようになります。
-ボタンは一覧表パネルの下部に表示されます（一覧表の表示が必要です）。</source>
-        <translation>Select features by click, Ctrl+click or rectangle, and download the selection
-or the whole layer as CSV or GeoJSON.
-The buttons appear at the bottom of the feature table panel (the table must be shown).</translation>
+        <location filename="../ui/display_tab.py" line="571" />
+        <source>先頭が0の番号を ="0123" 形式で出力</source>
+        <translation>Write leading-zero numbers as ="0123"</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="449" />
-        <source>ゼロ始まりの番号をExcelで欠けないよう ="0123" 形式で出力する</source>
-        <translation>Write numbers with leading zeros as ="0123" so Excel keeps the zeros</translation>
+        <location filename="../ui/display_tab.py" line="572" />
+        <source>GeoJSONを整形して出力</source>
+        <translation>Pretty-print GeoJSON</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="452" />
-        <source>施設コードなど先頭が0の値は、通常のCSVだとExcelで開いた時に
-0が消えて「123」になります。この形式なら消えませんが、
-Excel以外のツールに取り込む場合は ="..." が邪魔になることがあります。</source>
-        <translation>Values with leading zeros, such as facility codes, lose the zeros (becoming "123")
-when a normal CSV is opened in Excel. This format keeps them, but the ="..."
-wrapper may get in the way when importing into tools other than Excel.</translation>
+        <location filename="../ui/display_tab.py" line="578" />
+        <source>クリック・Ctrl+クリック・範囲（四角形）で地物を選び、選んだ分またはレイヤー全体をCSV・GeoJSONで保存できるようにします。ボタンは一覧表の下に出るので、「検索・絞り込み」の地物の一覧表もオンにしてください。CSVはExcelで文字化けしない形式（BOM付きUTF-8）で、緯度・経度の列が付きます（線・面は重心）。</source>
+        <translation>Select features by click, Ctrl+click or rectangle and save the selection or the whole layer as CSV or GeoJSON. The buttons appear under the feature table, so also turn on the feature table under Search &amp; filter. CSV is UTF-8 with BOM (displays correctly in Excel) and gets latitude/longitude columns (centroid for lines and polygons).</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="458" />
-        <source>GeoJSONを整形して出力する（読みやすいがファイルは大きくなる）</source>
-        <translation>Pretty-print GeoJSON (easier to read, but larger files)</translation>
+        <location filename="../ui/display_tab.py" line="584" />
+        <source>施設コードなど先頭が0の値は、普通のCSVだとExcelで開いたときに0が消えます（0123 → 123）。この形式なら消えませんが、Excel以外のツールに取り込むときは ="..." が邪魔になることがあります。</source>
+        <translation>Values with leading zeros, such as facility codes, lose them when a normal CSV is opened in Excel (0123 → 123). This format keeps them, but the ="..." wrapper may get in the way in tools other than Excel.</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="463" />
-        <source>CSVはBOM付きUTF-8で出力するため、Excelで開いても文字化けしません。緯度・経度の列が自動で追加されます（面・線は重心）。</source>
-        <translation>CSV is written as UTF-8 with BOM, so text displays correctly in Excel. Latitude/longitude columns are added automatically (centroid for polygons and lines).</translation>
+        <location filename="../ui/display_tab.py" line="588" />
+        <source>改行と字下げを入れて読みやすくします。そのぶんファイルは大きくなります。</source>
+        <translation>Adds line breaks and indentation for readability; files get larger.</translation>
     </message>
     <message>
-        <location filename="../ui/display_tab.py" line="529" />
+        <location filename="../ui/display_tab.py" line="650" />
         <source>最小ズームレベルは最大ズームレベル以下にしてください。</source>
         <translation>The minimum zoom level must be less than or equal to the maximum zoom level.</translation>
     </message>
@@ -709,71 +847,133 @@ wrapper may get in the way when importing into tools other than Excel.</translat
         <translation>Map to HTML</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="89" />
+        <location filename="../dialog.py" line="91" />
         <source>データ設定</source>
         <translation>Data</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="90" />
+        <location filename="../dialog.py" line="92" />
         <source>ラベル設定</source>
         <translation>Labels</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="91" />
+        <location filename="../dialog.py" line="93" />
         <source>表示設定</source>
         <translation>Display</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="92" />
+        <location filename="../dialog.py" line="94" />
         <source>出力設定</source>
         <translation>Output</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="101" />
-        <source>設定を初期状態に戻す</source>
-        <translation>Reset settings</translation>
+        <location filename="../dialog.py" line="103" />
+        <source>今の設定を初期値に保存</source>
+        <translation>Save current settings as defaults</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="102" />
-        <source>データ設定・表示設定・出力設定を、初めて開いたときの状態に戻します。
+        <location filename="../dialog.py" line="104" />
+        <source>表示設定と出力設定（タイトル以外）を、自分の初期値として保存します。
+設定をまだ保存していないプロジェクトを開いたときや、「初期値に戻す」で使われます。
+QGISの利用者設定に保存されるので、どのプロジェクトでも使えます。</source>
+        <translation>Saves the Display and Output settings (except the title) as your own defaults.
+They are used when a project has no saved settings yet, and by "Reset to defaults".
+They are kept in your QGIS user settings, so they apply to every project.</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="110" />
+        <source>初期値に戻す</source>
+        <translation>Reset to defaults</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="111" />
+        <source>データ設定・表示設定・出力設定を初期値に戻します。
 （各レイヤーのポップアップ・フィルター項目の設定は、そのまま残ります）</source>
-        <translation>Puts the Data, Display and Output settings back to how they were when first opened.
+        <translation>Puts the Data, Display and Output settings back to their defaults.
 (Each layer's popup/filter field choices are kept.)</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="134" />
+        <location filename="../dialog.py" line="145" />
+        <source>保存した初期値で始めました。</source>
+        <translation>Started from your saved defaults.</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="154" />
         <source>前回の設定（このQGISプロジェクトに保存）を読み込みました。</source>
         <translation>Loaded the previous settings (saved in this QGIS project).</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="137" />
+        <location filename="../dialog.py" line="157" />
         <source>プロジェクトに見つからないレイヤー {0} 件は除きました。</source>
         <translation>{0} layer(s) no longer in the project were left out.</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="153" />
-        <source>データ設定・表示設定・出力設定を初期状態に戻しますか？
+        <location filename="../dialog.py" line="172" />
+        <source>今の設定を初期値として保存しました。</source>
+        <translation>Saved the current settings as your defaults.</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="174" />
+        <source>初期値を保存しました</source>
+        <translation>Defaults saved</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="175" />
+        <source>表示設定と出力設定（タイトル以外）を、初期値として保存しました。
+
+・設定をまだ保存していないプロジェクトを開いたときは、この設定から始まります。
+・「初期値に戻す」を押したときも、この設定に戻ります。
+・データ設定（レイヤーの一覧）はプロジェクトごとなので、初期値には含まれません。</source>
+        <translation>The Display and Output settings (except the title) were saved as your defaults.
+
+- A project with no saved settings yet starts from them.
+- "Reset to defaults" also returns to them.
+- The Data tab (the layer list) belongs to each project, so it is not part of the defaults.</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="182" />
+        <source>データ設定・表示設定・出力設定を初期値に戻しますか？
 このプロジェクトに保存されている前回の設定も消去されます。</source>
-        <translation>Reset the Data, Display and Output settings?
+        <translation>Reset the Data, Display and Output settings to their defaults?
 The previous settings saved in this project are also cleared.</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="165" />
-        <source>設定を初期状態に戻しました。</source>
-        <translation>Settings were reset.</translation>
+        <location filename="../dialog.py" line="188" />
+        <source>どちらの初期値に戻しますか？</source>
+        <translation>Which defaults?</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="192" />
+        <location filename="../dialog.py" line="189" />
+        <source>保存した初期値</source>
+        <translation>My saved defaults</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="190" />
+        <source>プラグイン標準の初期値</source>
+        <translation>The plugin's defaults</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="205" />
+        <source>保存した初期値に戻しました。</source>
+        <translation>Reset to your saved defaults.</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="206" />
+        <source>プラグイン標準の初期値に戻しました。</source>
+        <translation>Reset to the plugin's defaults.</translation>
+    </message>
+    <message>
+        <location filename="../dialog.py" line="233" />
         <source>ほか {0} レイヤー</source>
         <translation>and {0} more layer(s)</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="194" />
+        <location filename="../dialog.py" line="235" />
         <source>ラベルを元に戻しますか？</source>
         <translation>Restore the labels?</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="195" />
+        <location filename="../dialog.py" line="236" />
         <source>次のレイヤーのラベルが「Web用」スタイルのままです。
 作業用スタイルに戻してから閉じますか？
 
@@ -784,70 +984,70 @@ Switch them back to the working style before closing?
 {0}</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="219" />
+        <location filename="../dialog.py" line="260" />
         <source>フィルターの対象レイヤー:</source>
         <translation>Layers each filter applies to:</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="321" />
+        <location filename="../dialog.py" line="362" />
         <source>入力エラー</source>
         <translation>Input error</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="358" />
+        <location filename="../dialog.py" line="399" />
         <source>レイヤーを書き出しています… ({0}/{1}) {2}</source>
         <translation>Exporting layers… ({0}/{1}) {2}</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="405" />
+        <location filename="../dialog.py" line="446" />
         <source>config.jsonを構築しています…</source>
         <translation>Building config.json…</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="428" />
+        <location filename="../dialog.py" line="469" />
         <source>HTMLを結合・出力しています…</source>
         <translation>Assembling and writing HTML…</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="436" />
+        <location filename="../dialog.py" line="477" />
         <source>生成が完了しました:
 </source>
         <translation>Generation complete:
 </translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="438" />
+        <location filename="../dialog.py" line="479" />
         <source>以下のレイヤーはスキップされました:
 </source>
         <translation>The following layers were skipped:
 </translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="440" />
+        <location filename="../dialog.py" line="481" />
         <source>以下は見た目が変わっている可能性があります:
 </source>
         <translation>The appearance of the following may have changed:
 </translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="448" />
+        <location filename="../dialog.py" line="489" />
         <source>フィルターバーはオンですが、フィルター項目が選ばれていないため表示されません。
 データ設定タブの「ポップアップ・フィルター項目」→「設定…」で、「フィルター」列にチェックしてください。</source>
         <translation>The filter bar is on, but no filter fields are picked, so it is not shown.
 On the Data tab, open "Popup / filter fields" &gt; "Settings…" and tick fields in the "Filter" column.</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="460" />
+        <location filename="../dialog.py" line="501" />
         <source>完了</source>
         <translation>Done</translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="464" />
+        <location filename="../dialog.py" line="505" />
         <source>生成に失敗しました: </source>
         <translation>Generation failed: </translation>
     </message>
     <message>
-        <location filename="../dialog.py" line="466" />
+        <location filename="../dialog.py" line="507" />
         <source>エラー</source>
         <translation>Error</translation>
     </message>

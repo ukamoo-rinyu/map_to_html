@@ -51,11 +51,13 @@ class FacilityAppGeneratorDialog(QDialog):
         self.skip_close_prompt = False
         self._build_ui()
         # Settings are kept in the QGIS project between sessions
-        # (core/settings_store.py). The fresh tabs' values are what
-        # 初期状態に戻す goes back to; the snapshot after restoring is
-        # what closing compares against, so just opening and closing
+        # (core/settings_store.py). A project with nothing saved starts
+        # from the user's own defaults (今の設定を初期値に保存) when there
+        # are any, else from the plugin's. The snapshot after restoring
+        # is what closing compares against, so just opening and closing
         # the dialog doesn't modify the project.
-        self._default_state = self._collect_state()
+        self._builtin_state = self._collect_state()
+        self._apply_defaults(settings_store.load_user_defaults())
         # Settings are written to the project that was open when the
         # dialog opened - never into a different one opened since.
         self._project_file = QgsProject.instance().fileName()
@@ -98,9 +100,16 @@ class FacilityAppGeneratorDialog(QDialog):
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
         row_bottom = QHBoxLayout()
-        btn_reset = QPushButton(self.tr('設定を初期状態に戻す'))
+        btn_save_defaults = QPushButton(self.tr('今の設定を初期値に保存'))
+        btn_save_defaults.setToolTip(self.tr(
+            '表示設定と出力設定（タイトル以外）を、自分の初期値として保存します。\n'
+            '設定をまだ保存していないプロジェクトを開いたときや、「初期値に戻す」で使われます。\n'
+            'QGISの利用者設定に保存されるので、どのプロジェクトでも使えます。'))
+        btn_save_defaults.clicked.connect(self._on_save_defaults)
+        row_bottom.addWidget(btn_save_defaults)
+        btn_reset = QPushButton(self.tr('初期値に戻す'))
         btn_reset.setToolTip(self.tr(
-            'データ設定・表示設定・出力設定を、初めて開いたときの状態に戻します。\n'
+            'データ設定・表示設定・出力設定を初期値に戻します。\n'
             '（各レイヤーのポップアップ・フィルター項目の設定は、そのまま残ります）'))
         btn_reset.clicked.connect(self._on_reset_settings)
         row_bottom.addWidget(btn_reset)
@@ -123,6 +132,17 @@ class FacilityAppGeneratorDialog(QDialog):
             'display': self.display_tab.get_state(),
             'output': self.output_tab.get_state(),
         }
+
+    def _apply_defaults(self, user_defaults):
+        """Display/Output tabs to the plugin's defaults, then the user's
+        own on top (a setting added in a later version, missing from
+        them, keeps the plugin's default)."""
+        self.display_tab.set_state(self._builtin_state['display'])
+        self.output_tab.set_state(self._builtin_state['output'])
+        if user_defaults:
+            self.display_tab.set_state(user_defaults.get('display'))
+            self.output_tab.set_state(user_defaults.get('output'))
+            self.lbl_state.setText(self.tr('保存した初期値で始めました。'))
 
     def _restore_state(self):
         state = settings_store.load()
@@ -147,22 +167,43 @@ class FacilityAppGeneratorDialog(QDialog):
         settings_store.save(state)
         self._saved_snapshot = state
 
+    def _on_save_defaults(self):
+        settings_store.save_user_defaults(self.display_tab.get_state(), self.output_tab.get_state())
+        self.lbl_state.setText(self.tr('今の設定を初期値として保存しました。'))
+        QMessageBox.information(
+            self, self.tr('初期値を保存しました'),
+            self.tr('表示設定と出力設定（タイトル以外）を、初期値として保存しました。\n\n'
+                    '・設定をまだ保存していないプロジェクトを開いたときは、この設定から始まります。\n'
+                    '・「初期値に戻す」を押したときも、この設定に戻ります。\n'
+                    '・データ設定（レイヤーの一覧）はプロジェクトごとなので、初期値には含まれません。'))
+
     def _on_reset_settings(self):
-        answer = QMessageBox.question(
-            self, self.tr('設定を初期状態に戻す'),
-            self.tr('データ設定・表示設定・出力設定を初期状態に戻しますか？\n'
-                    'このプロジェクトに保存されている前回の設定も消去されます。'),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if answer != QMessageBox.StandardButton.Yes:
+        user_defaults = settings_store.load_user_defaults()
+        message = self.tr('データ設定・表示設定・出力設定を初期値に戻しますか？\n'
+                          'このプロジェクトに保存されている前回の設定も消去されます。')
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle(self.tr('初期値に戻す'))
+        if user_defaults:
+            box.setText(message + '\n\n' + self.tr('どちらの初期値に戻しますか？'))
+            btn_user = box.addButton(self.tr('保存した初期値'), QMessageBox.ButtonRole.AcceptRole)
+            btn_builtin = box.addButton(self.tr('プラグイン標準の初期値'), QMessageBox.ButtonRole.AcceptRole)
+        else:
+            box.setText(message)
+            btn_user = None
+            btn_builtin = box.addButton(self.tr('初期値に戻す'), QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked not in (btn_user, btn_builtin) or clicked is None:
             return
         self.data_tab.reset_to_visible_layers()
-        self.display_tab.set_state(self._default_state['display'])
-        self.output_tab.set_state(self._default_state['output'])
+        self._apply_defaults(user_defaults if clicked is btn_user else None)
         settings_store.clear()
         self._saved_snapshot = self._collect_state()
-        self.lbl_state.setText(self.tr('設定を初期状態に戻しました。'))
+        self.lbl_state.setText(
+            self.tr('保存した初期値に戻しました。') if clicked is btn_user
+            else self.tr('プラグイン標準の初期値に戻しました。'))
 
     # ------------------------------------------------------------
     def reject(self):
