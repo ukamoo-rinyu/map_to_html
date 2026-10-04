@@ -10,7 +10,7 @@ from qgis.PyQt.QtWidgets import (
     QLineEdit, QPushButton, QGroupBox, QRadioButton, QButtonGroup,
     QFileDialog, QProgressBar, QColorDialog, QFontComboBox,
 )
-from qgis.PyQt.QtGui import QColor
+from qgis.PyQt.QtGui import QColor, QFont
 from qgis.core import QgsSettings
 
 DEFAULT_TITLE_COLOR = '#ffffff'
@@ -190,6 +190,44 @@ class OutputTab(QWidget):
                 'font_family': self.font_combo.currentFont().family() if self._font_touched else None,
             },
         }
+
+    def get_state(self):
+        """What core/settings_store.py keeps between sessions. Unlike
+        get_settings() this doesn't touch the title history."""
+        return {
+            'title': self.cb_title.currentText().strip(),
+            'output_format': 'split' if self.rb_split.isChecked() else 'single',
+            'output_path': self.le_path.text().strip(),
+            'title_color': self._title_color,
+            'header_bg_color': self._header_bg_color,
+            'font_family': self.font_combo.currentFont().family() if self._font_touched else None,
+        }
+
+    def set_state(self, state):
+        if not isinstance(state, dict):
+            return
+        if state.get('title') is not None:
+            self.cb_title.setCurrentText(state['title'])
+        if state.get('output_format') == 'single':
+            self.rb_single.setChecked(True)
+        elif state.get('output_format') == 'split':
+            self.rb_split.setChecked(True)
+        if state.get('output_path') is not None:
+            self.le_path.setText(state['output_path'])
+        for key, attr, button in (
+            ('title_color', '_title_color', self.btn_title_color),
+            ('header_bg_color', '_header_bg_color', self.btn_header_bg_color),
+        ):
+            if state.get(key) and QColor(state[key]).isValid():
+                setattr(self, attr, QColor(state[key]).name())
+                self._update_color_button(button, getattr(self, attr))
+        if state.get('font_family'):
+            self.font_combo.setCurrentFont(QFont(state['font_family']))
+            self._font_touched = True
+        elif 'font_family' in state:
+            # None = the template's default font; setCurrentFont above
+            # isn't called, but an earlier restore may have set the flag.
+            self._font_touched = False
 
     def set_progress_range(self, maximum):
         self.progress.setRange(0, maximum)

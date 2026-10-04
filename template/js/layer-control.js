@@ -83,7 +83,7 @@ function buildPopupContext(layerConfig, display) {
    initLayerControl rather than a plain forEach. */
 function fagSetLoadingProgress(done, total) {
   var el = document.getElementById('loading-text');
-  if (el) el.textContent = 'Loading… ' + done + '/' + total + ' layers';
+  if (el) el.textContent = fagT('loading.layers', [done, total]);
 }
 
 function fagRemoveLoadingOverlay() {
@@ -590,7 +590,11 @@ function buildCategoryLegendHtml(categoryLegend) {
     // unnamed. Rendering that as a bare swatch with no text next to it
     // reads as a bug, so fall back to the raw classification value and
     // finally to an explicit placeholder.
-    var text = entry.label || entry.value || '(other)';
+    var text = entry.label || entry.value || '';
+    // The catch-all category has no name of its own - mark it so the
+    // language switch (i18n.js) can relabel it.
+    if (!text) li.querySelector('span:last-child').setAttribute('data-i18n', 'legend.other');
+    text = text || fagT('legend.other');
     // textContent, not innerHTML - a category label is raw QGIS data and
     // can contain <, & or quotes.
     li.querySelector('span:last-child').textContent = text;
@@ -872,13 +876,30 @@ function buildStyledLayer(geojson, styleData, popupTrigger, interactive, layerId
    at all. `popupTrigger === 'hover'` (表示設定 tab) additionally opens
    the popup on mouseover/closes on mouseout; the default click-to-open
    binding is left in place either way, so hovering never disables
-   clicking, it just adds an extra way in. */
+   clicking, it just adds an extra way in.
+
+   While the radius panel is waiting for a center (FAG_RADIUS_PICK set,
+   radius.js), a click on a feature sets the center instead of opening
+   its popup - a point is centered exactly on itself. Leaflet's own
+   bindPopup click listener is swapped for ours so the popup never
+   opens in that mode; stopping the event also keeps the map's click
+   listeners (radius.js, the label-click popup) from running twice. */
 function bindPopupIfAny(layer, props, popupTrigger, popupCtx) {
   var html = buildGenericPopupHtml(props, popupCtx, fagFeatureLatLng(layer));
-  if (!html) return;
-  layer.bindPopup(html);
-  if (popupTrigger === 'hover') {
-    layer.on('mouseover', function () { layer.openPopup(); });
+  if (html) {
+    layer.bindPopup(html);
+    layer.off('click', layer._openPopup, layer);
+  }
+  layer.on('click', function (e) {
+    if (FAG_RADIUS_PICK) {
+      L.DomEvent.stop(e);
+      FAG_RADIUS_PICK(layer.getLatLng ? layer.getLatLng() : e.latlng);
+      return;
+    }
+    if (html) layer._openPopup(e);
+  });
+  if (html && popupTrigger === 'hover') {
+    layer.on('mouseover', function () { if (!FAG_RADIUS_PICK) layer.openPopup(); });
     layer.on('mouseout', function () { layer.closePopup(); });
   }
 }

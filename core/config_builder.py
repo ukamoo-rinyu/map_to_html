@@ -70,6 +70,17 @@ def build_config(settings):
             # Scale bar (spec item 1) - omitted entirely rather than
             # emitted as false, so the template can skip the control.
             'scaleBar': display.get('scaleBar') or None,
+            # Map buttons (v0.7.0). locate: the 現在地 button.
+            # radiusSearch: {'defaultRadius': m, 'radii': [m, ...]}, or
+            # None for no 半径検索 button. shareLink: keep the view in
+            # the address's #fragment and show the copy-link button.
+            'locate': bool(display.get('locate', False)),
+            'radiusSearch': display.get('radiusSearch') or None,
+            'shareLink': bool(display.get('shareLink', False)),
+            # Page language (spec 10.3): 'auto' follows the browser;
+            # languageToggle adds the 日本語/EN switch to the header.
+            'language': display.get('language') or 'en',
+            'languageToggle': bool(display.get('languageToggle', False)),
         },
         'theme': {
             'titleColor': theme.get('title_color'),

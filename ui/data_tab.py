@@ -25,7 +25,7 @@ from qgis.PyQt.QtWidgets import (
     QGroupBox, QTableWidget, QTableWidgetItem, QCheckBox, QHeaderView,
     QMessageBox, QAbstractItemView, QSpinBox,
 )
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtCore import Qt, QEvent
 from qgis.PyQt.QtGui import QFont
 from qgis.core import QgsRasterLayer
 
@@ -129,6 +129,10 @@ class DataTab(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        # Width the name column was fitted to; any room the table has
+        # beyond its columns goes to that column (see _absorb_extra_width).
+        self._name_fit_width = 0
+        self.table.viewport().installEventFilter(self)
         lay.addWidget(self.table, 1)
 
         row_bottom = QHBoxLayout()
@@ -417,6 +421,31 @@ class DataTab(QWidget):
                          self.GROUP_COLUMN_MAX_WIDTH)
         self._fit_column(COL_NAME, [self.table.item(row, COL_NAME).text() for row in rows],
                          self.NAME_COLUMN_MAX_WIDTH)
+        self._name_fit_width = self.table.columnWidth(COL_NAME)
+        self._absorb_extra_width()
+
+    def columns_width(self):
+        """Width all columns need (the name column at its fitted width) -
+        dialog.py sizes the window to it on open."""
+        header = self.table.horizontalHeader()
+        return (header.length() - self.table.columnWidth(COL_NAME)
+                + max(self._name_fit_width, header.sectionSizeHint(COL_NAME)))
+
+    def _absorb_extra_width(self):
+        """Give the table's spare width to the name column, so a wide
+        window shows long names in full instead of an empty strip to
+        the right of the last column (user feedback). Never narrower
+        than its fitted width - shrinking the window then scrolls."""
+        if not self._name_fit_width:
+            return
+        others = self.table.horizontalHeader().length() - self.table.columnWidth(COL_NAME)
+        spare = self.table.viewport().width() - others
+        self.table.setColumnWidth(COL_NAME, max(self._name_fit_width, spare))
+
+    def eventFilter(self, obj, event):
+        if obj is self.table.viewport() and event.type() == QEvent.Type.Resize:
+            self._absorb_extra_width()
+        return super().eventFilter(obj, event)
 
     def _fit_column(self, column, texts, max_width):
         metrics = self.table.fontMetrics()
@@ -709,6 +738,62 @@ class DataTab(QWidget):
                 ),
             })
         return result
+
+    # ------------------------------------------------------------
+    # Kept between sessions by core/settings_store.py. Popup/filter
+    # field choices aren't part of this - they already live on each
+    # QGIS layer (core/field_config.py) and come back with it.
+    # max_zoom isn't kept: it has no control here and always comes
+    # fresh from the layer's QGIS scale-based visibility.
+    STATE_KEYS = ('layer_id', 'label', 'auto_label', 'default_visible',
+                  'show_popup', 'opacity', 'min_zoom')
+
+    def get_state(self):
+        self._sync_labels_from_table()
+        return [{key: entry.get(key) for key in self.STATE_KEYS} for entry in self._entries]
+
+    def set_state(self, saved_entries):
+        """Rebuild the table from a saved list, in its saved order.
+        Layers no longer in the project are left out. Returns the
+        number of layers restored - 0 leaves the table as it was (the
+        layers currently visible in QGIS), so a project whose layers
+        were all replaced still opens with something useful."""
+        if not isinstance(saved_entries, list):
+            return 0
+        restorable = [
+            saved for saved in saved_entries
+            if isinstance(saved, dict) and layer_utils.get_layer_by_id(saved.get('layer_id'))
+        ]
+        if not restorable:
+            return 0
+
+        self._entries = []
+        for saved in restorable:
+            self._add_layer_by_id(saved['layer_id'])
+            if not self._entries or self._entries[-1]['layer_id'] != saved['layer_id']:
+                continue
+            entry = self._entries[-1]
+            # A label the user typed is kept; one that was still just the
+            # QGIS layer name follows a rename made since (same rule as
+            # reload_from_project).
+            if saved.get('label') and saved.get('label') != saved.get('auto_label'):
+                entry['label'] = saved['label']
+            for key in ('default_visible', 'show_popup'):
+                if isinstance(saved.get(key), bool):
+                    entry[key] = saved[key]
+            if entry['opacity'] is not None and isinstance(saved.get('opacity'), (int, float)):
+                entry['opacity'] = max(0.0, min(1.0, float(saved['opacity'])))
+            if 'min_zoom' in saved and (saved['min_zoom'] is None or isinstance(saved['min_zoom'], int)):
+                entry['min_zoom'] = saved['min_zoom']
+        self._rebuild_table()
+        self.refresh_pick_list()
+        return len(self._entries)
+
+    def reset_to_visible_layers(self):
+        """Back to what a first open shows: the layers visible in QGIS."""
+        self._entries = []
+        self._rebuild_table()
+        self._populate_visible_layers()
 
     def validate(self):
         errors = []

@@ -245,6 +245,130 @@ html, body {
   text-decoration: line-through;
 }
 
+/* ---- Map buttons added by locate.js / radius.js / share.js (same
+   leaflet-bar look as the zoom and label buttons) ---- */
+.fag-map-btn a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-color);
+}
+.fag-map-btn a.fag-map-btn-active {
+  color: #ffffff;
+  background: var(--accent-color);
+}
+/* While the radius panel is open a map click picks the center. */
+.fag-radius-picking.leaflet-container { cursor: crosshair; }
+
+/* ---- 日本語/EN switch in the header (i18n.js) ---- */
+#lang-toggle {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--header-text);
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.85;
+}
+#lang-toggle:hover { opacity: 1; }
+/* The search box already takes the free space on its left. */
+#search-panel:not(.fag-hidden) ~ #lang-toggle { margin-left: 0; }
+
+/* ---- Short status message (share / locate) ---- */
+#fag-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 1200;
+  max-width: min(460px, calc(100% - 24px));
+  padding: 8px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #ffffff;
+  background: rgba(43, 47, 54, 0.92);
+  border-radius: 6px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+/* ---- Radius search panel (radius.js), beside the map buttons ---- */
+#radius-panel {
+  position: absolute;
+  top: 10px;
+  left: 56px;
+  z-index: 1000;
+  width: 280px;
+  max-width: calc(100% - 66px);
+  max-height: calc(100% - 20px);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+  padding: 8px 10px;
+  font-size: 13px;
+}
+#radius-panel.fag-hidden { display: none; }
+.fag-radius-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.fag-radius-heading { font-weight: 700; }
+.fag-radius-close {
+  border: none;
+  background: none;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted-color);
+  padding: 0 4px;
+}
+.fag-radius-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.fag-radius-select { font-family: inherit; font-size: 13px; }
+.fag-radius-hint { color: var(--muted-color); font-size: 12px; margin-bottom: 6px; }
+.fag-radius-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.fag-radius-actions button {
+  padding: 3px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-color);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.fag-radius-actions button:hover { background: var(--bg-color); }
+.fag-radius-summary { font-size: 12px; color: var(--muted-color); margin-bottom: 4px; }
+.fag-radius-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.fag-radius-result {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 8px;
+  padding: 5px 4px;
+  border-top: 1px solid var(--border-color);
+  cursor: pointer;
+}
+.fag-radius-result:hover { background: var(--bg-color); }
+.fag-radius-result-name { overflow-wrap: anywhere; }
+.fag-radius-result-distance { color: var(--accent-color); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fag-radius-result-layer { grid-column: 1 / -1; color: var(--muted-color); font-size: 11px; }
+
 /* ---- Layer toggle panel (spec 3.1, レイヤーリスト) ---- */
 #layer-panel {
   position: absolute;
@@ -812,6 +936,12 @@ html, body {
     flex: 1 1 100%;
     margin-left: 0;
   }
+  /* The radius panel would cover most of a phone's map - keep it to
+     the top half so the circle stays visible below it. */
+  #app.responsive #radius-panel { max-height: 50%; }
+  /* Title and language switch share the first row, search the second. */
+  #app.responsive #search-panel { order: 2; }
+  #app.responsive #search-panel:not(.fag-hidden) ~ #lang-toggle { margin-left: auto; }
   /* Filter dropdowns fold behind a "Filter" button on a phone so
      they don't permanently take a chunk of the small map. */
   #app.responsive #filter-bar { padding: 6px 12px; }

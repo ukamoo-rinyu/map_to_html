@@ -51,6 +51,9 @@ function initSearch(config, map) {
   document.addEventListener('fag:filterchange', function () {
     if (input.value.trim()) runSearch();
   });
+  document.addEventListener('fag:langchange', function () {
+    if (input.value.trim()) runSearch();
+  });
 
   function runSearch() {
     var keyword = input.value.trim().toLowerCase();
@@ -97,7 +100,7 @@ function initSearch(config, map) {
   }
 
   function renderResults(matches) {
-    countEl.textContent = matches.length + ' result' + (matches.length === 1 ? '' : 's');
+    countEl.textContent = fagT('search.results', [matches.length]);
     resultsEl.innerHTML = '';
     resultsEl.classList.toggle('fag-hidden', matches.length === 0);
     if (!matches.length) return;
@@ -109,7 +112,7 @@ function initSearch(config, map) {
     if (matches.length > RESULT_LIMIT) {
       var more = document.createElement('li');
       more.className = 'fag-search-more';
-      more.textContent = (matches.length - RESULT_LIMIT) + ' more - narrow your search to see them';
+      more.textContent = fagT('search.more', [matches.length - RESULT_LIMIT]);
       fragment.appendChild(more);
     }
     resultsEl.appendChild(fragment);
@@ -118,7 +121,7 @@ function initSearch(config, map) {
   function buildResultItem(match) {
     var props = match.entry.feature.properties || {};
     var keys = Object.keys(props).filter(function (k) { return !fagIsInternalKey(k); });
-    var name = props.label_text || (keys.length ? props[keys[0]] : '') || '(no name)';
+    var name = fagFeatureName(props);
     var sub = keys
       .filter(function (k) { return String(props[k]) !== String(name); })
       .map(function (k) { return props[k]; })

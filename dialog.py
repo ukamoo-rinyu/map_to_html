@@ -12,8 +12,8 @@ import os
 import tempfile
 
 from qgis.PyQt.QtWidgets import (
-    QDialog, QVBoxLayout, QTabWidget, QDialogButtonBox, QMessageBox,
-    QApplication,
+    QDialog, QVBoxLayout, QHBoxLayout, QTabWidget, QDialogButtonBox, QMessageBox,
+    QApplication, QLabel, QPushButton,
 )
 from qgis.PyQt.QtCore import Qt, QUrl
 from qgis.PyQt.QtGui import QDesktopServices
@@ -25,7 +25,10 @@ from .ui.data_tab import DataTab
 from .ui.display_tab import DisplayTab
 from .ui.label_tab import LabelTab
 from .ui.output_tab import OutputTab
-from .core import label_prep, style_extractor, geojson_writer, config_builder, html_builder, layer_utils, tile_layer
+from .core import (
+    label_prep, style_extractor, geojson_writer, config_builder, html_builder, layer_utils,
+    tile_layer, settings_store,
+)
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'template')
 
@@ -36,6 +39,7 @@ class FacilityAppGeneratorDialog(QDialog):
         self.iface = iface
         self.setWindowTitle(self.tr('Map to HTML'))
         self._resize_to_fit_screen(1200, 640)
+        self._fitted_once = False
         # Explicitly modeless (plugin.py opens it with show(), not
         # exec()): the user has to be able to keep working in QGIS -
         # changing a layer's symbology, adding a layer - while this is
@@ -47,6 +51,55 @@ class FacilityAppGeneratorDialog(QDialog):
         # or the plugin is being reloaded must not stop on a question.
         self.skip_close_prompt = False
         self._build_ui()
+        # Settings are kept in the QGIS project between sessions
+        # (core/settings_store.py). A project with nothing saved starts
+        # from the user's own defaults (今の設定を初期値に保存) when there
+        # are any, else from the plugin's. The snapshot after restoring
+        # is what closing compares against, so just opening and closing
+        # the dialog doesn't modify the project.
+        self._builtin_state = self._collect_state()
+        self._apply_defaults(settings_store.load_user_defaults())
+        # Settings are written to the project that was open when the
+        # dialog opened - never into a different one opened since.
+        self._project_file = QgsProject.instance().fileName()
+        self._restore_state()
+        self._saved_snapshot = self._collect_state()
+
+    # Narrowest the window opens at: the 表示設定 tab's widest row
+    # (center latitude/longitude/zoom) needs about this much.
+    MIN_OPEN_WIDTH = 1000
+
+    def showEvent(self, event):
+        """On first opening, size the window to the データ設定 table instead
+        of a fixed 1200px (user feedback: a wide, half-empty window was
+        hard to read). Done here because column and viewport widths are
+        only real once the window is laid out on screen."""
+        super().showEvent(event)
+        if self._fitted_once:
+            return
+        self._fitted_once = True
+        table = self.data_tab.table
+        if not table.isVisible():
+            return
+        scrollbar = table.verticalScrollBar()
+        reserve = scrollbar.sizeHint().width() if not scrollbar.isVisible() else 0
+        width = self.width() - table.viewport().width() + self.data_tab.columns_width() + reserve + 4
+        width = max(width, self.MIN_OPEN_WIDTH)
+        screen = self.screen() if hasattr(self, 'screen') else QApplication.primaryScreen()
+        if screen is not None:
+            available = screen.availableGeometry()
+            width = min(width, available.width() - 60)
+            geometry = self.frameGeometry()
+            center = geometry.center()
+            self.resize(width, self.height())
+            geometry = self.frameGeometry()
+            geometry.moveCenter(center)
+            # Keep the title bar on screen (see _resize_to_fit_screen).
+            left = max(available.left(), min(geometry.left(), available.right() - geometry.width()))
+            top = max(available.top(), min(geometry.top(), available.bottom() - geometry.height()))
+            self.move(left, top)
+        else:
+            self.resize(width, self.height())
 
     def _resize_to_fit_screen(self, width, height):
         """Open at the preferred size, but never taller/wider than the
@@ -83,12 +136,111 @@ class FacilityAppGeneratorDialog(QDialog):
         # which also covers layers added since the dialog opened.
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
+        row_bottom = QHBoxLayout()
+        btn_save_defaults = QPushButton(self.tr('今の設定を初期値に保存'))
+        btn_save_defaults.setToolTip(self.tr(
+            '表示設定と出力設定（タイトル以外）を、自分の初期値として保存します。\n'
+            '設定をまだ保存していないプロジェクトを開いたときや、「初期値に戻す」で使われます。\n'
+            'QGISの利用者設定に保存されるので、どのプロジェクトでも使えます。'))
+        btn_save_defaults.clicked.connect(self._on_save_defaults)
+        row_bottom.addWidget(btn_save_defaults)
+        btn_reset = QPushButton(self.tr('初期値に戻す'))
+        btn_reset.setToolTip(self.tr(
+            'データ設定・表示設定・出力設定を初期値に戻します。\n'
+            '（各レイヤーのポップアップ・フィルター項目の設定は、そのまま残ります）'))
+        btn_reset.clicked.connect(self._on_reset_settings)
+        row_bottom.addWidget(btn_reset)
+        self.lbl_state = QLabel('')
+        self.lbl_state.setStyleSheet('color:#767c87;')
+        self.lbl_state.setWordWrap(True)
+        row_bottom.addWidget(self.lbl_state, 1)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         # Only rejected, not also the button's clicked: the Close button
         # emits both, and closing twice would ask the label question
         # below a second time after the user answered キャンセル.
         buttons.rejected.connect(self.close)
-        root.addWidget(buttons)
+        row_bottom.addWidget(buttons)
+        root.addLayout(row_bottom)
+
+    # ------------------------------------------------------------
+    def _collect_state(self):
+        return {
+            'data': self.data_tab.get_state(),
+            'display': self.display_tab.get_state(),
+            'output': self.output_tab.get_state(),
+        }
+
+    def _apply_defaults(self, user_defaults):
+        """Display/Output tabs to the plugin's defaults, then the user's
+        own on top (a setting added in a later version, missing from
+        them, keeps the plugin's default)."""
+        self.display_tab.set_state(self._builtin_state['display'])
+        self.output_tab.set_state(self._builtin_state['output'])
+        if user_defaults:
+            self.display_tab.set_state(user_defaults.get('display'))
+            self.output_tab.set_state(user_defaults.get('output'))
+            self.lbl_state.setText(self.tr('保存した初期値で始めました。'))
+
+    def _restore_state(self):
+        state = settings_store.load()
+        if not state:
+            return
+        restored_layers = self.data_tab.set_state(state.get('data'))
+        self.display_tab.set_state(state.get('display'))
+        self.output_tab.set_state(state.get('output'))
+        message = self.tr('前回の設定（このQGISプロジェクトに保存）を読み込みました。')
+        saved_layers = state.get('data') or []
+        if restored_layers < len(saved_layers):
+            message += ' ' + self.tr('プロジェクトに見つからないレイヤー {0} 件は除きました。').format(
+                len(saved_layers) - restored_layers)
+        self.lbl_state.setText(message)
+
+    def _save_state(self, force=False):
+        if QgsProject.instance().fileName() != self._project_file:
+            return
+        state = self._collect_state()
+        if not force and state == self._saved_snapshot:
+            return
+        settings_store.save(state)
+        self._saved_snapshot = state
+
+    def _on_save_defaults(self):
+        settings_store.save_user_defaults(self.display_tab.get_state(), self.output_tab.get_state())
+        self.lbl_state.setText(self.tr('今の設定を初期値として保存しました。'))
+        QMessageBox.information(
+            self, self.tr('初期値を保存しました'),
+            self.tr('表示設定と出力設定（タイトル以外）を、初期値として保存しました。\n\n'
+                    '・設定をまだ保存していないプロジェクトを開いたときは、この設定から始まります。\n'
+                    '・「初期値に戻す」を押したときも、この設定に戻ります。\n'
+                    '・データ設定（レイヤーの一覧）はプロジェクトごとなので、初期値には含まれません。'))
+
+    def _on_reset_settings(self):
+        user_defaults = settings_store.load_user_defaults()
+        message = self.tr('データ設定・表示設定・出力設定を初期値に戻しますか？\n'
+                          'このプロジェクトに保存されている前回の設定も消去されます。')
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle(self.tr('初期値に戻す'))
+        if user_defaults:
+            box.setText(message + '\n\n' + self.tr('どちらの初期値に戻しますか？'))
+            btn_user = box.addButton(self.tr('保存した初期値'), QMessageBox.ButtonRole.AcceptRole)
+            btn_builtin = box.addButton(self.tr('プラグイン標準の初期値'), QMessageBox.ButtonRole.AcceptRole)
+        else:
+            box.setText(message)
+            btn_user = None
+            btn_builtin = box.addButton(self.tr('初期値に戻す'), QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked not in (btn_user, btn_builtin) or clicked is None:
+            return
+        self.data_tab.reset_to_visible_layers()
+        self._apply_defaults(user_defaults if clicked is btn_user else None)
+        settings_store.clear()
+        self._saved_snapshot = self._collect_state()
+        self.lbl_state.setText(
+            self.tr('保存した初期値に戻しました。') if clicked is btn_user
+            else self.tr('プラグイン標準の初期値に戻しました。'))
 
     # ------------------------------------------------------------
     def reject(self):
@@ -97,6 +249,8 @@ class FacilityAppGeneratorDialog(QDialog):
         ラベル設定 tab's "Web" styles are offered to be switched back."""
         if not self.skip_close_prompt and not self._confirm_restore_label_styles():
             return
+        if not self.skip_close_prompt:
+            self._save_state()
         super().reject()
 
     def _confirm_restore_label_styles(self):
@@ -374,6 +528,7 @@ class FacilityAppGeneratorDialog(QDialog):
                     'データ設定タブの「ポップアップ・フィルター項目」→「設定…」で、'
                     '「フィルター」列にチェックしてください。')
             self.output_tab.set_result(message, is_error=False)
+            self._save_state(force=True)
             if written:
                 # written's last entry is always the generated .html file
                 # itself (html_builder.build_output appends it last for
