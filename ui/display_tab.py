@@ -208,11 +208,13 @@ class DisplayTab(QWidget):
         root.addWidget(grp_scale)
 
         # ---- Map buttons (v0.7.0) -------------------------------------
+        # All three are off until switched on (user preference: only
+        # the scale bar is on by default).
         grp_buttons = QGroupBox(self.tr('地図上のボタン'))
         lay_buttons = QVBoxLayout(grp_buttons)
         self.chk_locate = QCheckBox(self.tr(
             '現在地ボタンを表示する（スマートフォンなどで、今いる場所を地図に表示）'))
-        self.chk_locate.setChecked(True)
+        self.chk_locate.setChecked(False)
         self.chk_locate.setToolTip(self.tr(
             'ブラウザが位置情報の利用を確認します。位置情報は閲覧者の端末の中だけで使われ、\n'
             'どこにも送信されません。https:// で公開したページか、端末上のファイルとして\n'
@@ -221,7 +223,7 @@ class DisplayTab(QWidget):
 
         self.chk_radius = QCheckBox(self.tr(
             '半径検索を使えるようにする（地点を決めて、指定した半径内の地物を近い順に一覧表示）'))
-        self.chk_radius.setChecked(True)
+        self.chk_radius.setChecked(False)
         self.chk_radius.setToolTip(self.tr(
             '中心は、地図のクリック・現在地・地図の中心から選べます。\n'
             '地図に表示中のレイヤー（ポップアップ表示がオンのもの）が対象で、\n'
@@ -244,7 +246,7 @@ class DisplayTab(QWidget):
 
         self.chk_share = QCheckBox(self.tr(
             'リンク共有ボタンを表示する（今の表示位置・レイヤー・絞り込みをURLにしてコピー）'))
-        self.chk_share.setChecked(True)
+        self.chk_share.setChecked(False)
         self.chk_share.setToolTip(self.tr(
             'コピーしたURLを開くと、同じ場所・同じレイヤー・同じ絞り込みの状態で地図が開きます。\n'
             'ファイルとして開いた地図のURLは、同じファイルを開ける人（共有フォルダなど）だけが使えます。'))

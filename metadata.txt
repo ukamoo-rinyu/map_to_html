@@ -10,9 +10,9 @@ about=Pick any number of layers from the current QGIS project and export a self-
 
 changelog=0.7.0
       - Settings are remembered: the Data, Display and Output tab settings are saved in the QGIS project when an HTML is generated or the dialog is closed, and restored the next time the dialog opens (layers no longer in the project are left out). A new "Reset settings" button returns everything to the first-open state
-      - Current location button (on by default): shows the reader's position on the map with an accuracy circle. Works for pages opened over https:// or as a file on the device
-      - Radius search (on by default): pick a center by clicking the map, from the current location or from the map center, choose a radius, and get the features within it listed nearest first; follows the layer panel and the filter bar
-      - Share link (on by default): the page keeps its view (position, zoom, layers, filters, radius search, language) in the address, and a button copies that link; opening it shows the same view
+      - Current location button (off by default): shows the reader's position on the map with an accuracy circle. Works for pages opened over https:// or as a file on the device
+      - Radius search (off by default): pick a center by clicking the map, from the current location or from the map center, choose a radius, and get the features within it listed nearest first; follows the layer panel and the filter bar
+      - Share link (off by default): the page keeps its view (position, zoom, layers, filters, radius search, language) in the address, and a button copies that link; opening it shows the same view
       - The exported page can now be shown in Japanese or English: choose the initial language (or follow the reader's browser) and optionally show a 日本語/EN switch in the header. Popup map links, the filter bar, table, selection/export and all messages follow it
       - English translation: filled in strings that were missing from the plugin dialog, including two export warnings
     0.6.0
