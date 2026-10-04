@@ -39,6 +39,7 @@ class FacilityAppGeneratorDialog(QDialog):
         self.iface = iface
         self.setWindowTitle(self.tr('Map to HTML'))
         self._resize_to_fit_screen(1200, 640)
+        self._fitted_once = False
         # Explicitly modeless (plugin.py opens it with show(), not
         # exec()): the user has to be able to keep working in QGIS -
         # changing a layer's symbology, adding a layer - while this is
@@ -63,6 +64,42 @@ class FacilityAppGeneratorDialog(QDialog):
         self._project_file = QgsProject.instance().fileName()
         self._restore_state()
         self._saved_snapshot = self._collect_state()
+
+    # Narrowest the window opens at: the 表示設定 tab's widest row
+    # (center latitude/longitude/zoom) needs about this much.
+    MIN_OPEN_WIDTH = 1000
+
+    def showEvent(self, event):
+        """On first opening, size the window to the データ設定 table instead
+        of a fixed 1200px (user feedback: a wide, half-empty window was
+        hard to read). Done here because column and viewport widths are
+        only real once the window is laid out on screen."""
+        super().showEvent(event)
+        if self._fitted_once:
+            return
+        self._fitted_once = True
+        table = self.data_tab.table
+        if not table.isVisible():
+            return
+        scrollbar = table.verticalScrollBar()
+        reserve = scrollbar.sizeHint().width() if not scrollbar.isVisible() else 0
+        width = self.width() - table.viewport().width() + self.data_tab.columns_width() + reserve + 4
+        width = max(width, self.MIN_OPEN_WIDTH)
+        screen = self.screen() if hasattr(self, 'screen') else QApplication.primaryScreen()
+        if screen is not None:
+            available = screen.availableGeometry()
+            width = min(width, available.width() - 60)
+            geometry = self.frameGeometry()
+            center = geometry.center()
+            self.resize(width, self.height())
+            geometry = self.frameGeometry()
+            geometry.moveCenter(center)
+            # Keep the title bar on screen (see _resize_to_fit_screen).
+            left = max(available.left(), min(geometry.left(), available.right() - geometry.width()))
+            top = max(available.top(), min(geometry.top(), available.bottom() - geometry.height()))
+            self.move(left, top)
+        else:
+            self.resize(width, self.height())
 
     def _resize_to_fit_screen(self, width, height):
         """Open at the preferred size, but never taller/wider than the

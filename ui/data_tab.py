@@ -25,7 +25,7 @@ from qgis.PyQt.QtWidgets import (
     QGroupBox, QTableWidget, QTableWidgetItem, QCheckBox, QHeaderView,
     QMessageBox, QAbstractItemView, QSpinBox,
 )
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtCore import Qt, QEvent
 from qgis.PyQt.QtGui import QFont
 from qgis.core import QgsRasterLayer
 
@@ -129,6 +129,10 @@ class DataTab(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        # Width the name column was fitted to; any room the table has
+        # beyond its columns goes to that column (see _absorb_extra_width).
+        self._name_fit_width = 0
+        self.table.viewport().installEventFilter(self)
         lay.addWidget(self.table, 1)
 
         row_bottom = QHBoxLayout()
@@ -417,6 +421,31 @@ class DataTab(QWidget):
                          self.GROUP_COLUMN_MAX_WIDTH)
         self._fit_column(COL_NAME, [self.table.item(row, COL_NAME).text() for row in rows],
                          self.NAME_COLUMN_MAX_WIDTH)
+        self._name_fit_width = self.table.columnWidth(COL_NAME)
+        self._absorb_extra_width()
+
+    def columns_width(self):
+        """Width all columns need (the name column at its fitted width) -
+        dialog.py sizes the window to it on open."""
+        header = self.table.horizontalHeader()
+        return (header.length() - self.table.columnWidth(COL_NAME)
+                + max(self._name_fit_width, header.sectionSizeHint(COL_NAME)))
+
+    def _absorb_extra_width(self):
+        """Give the table's spare width to the name column, so a wide
+        window shows long names in full instead of an empty strip to
+        the right of the last column (user feedback). Never narrower
+        than its fitted width - shrinking the window then scrolls."""
+        if not self._name_fit_width:
+            return
+        others = self.table.horizontalHeader().length() - self.table.columnWidth(COL_NAME)
+        spare = self.table.viewport().width() - others
+        self.table.setColumnWidth(COL_NAME, max(self._name_fit_width, spare))
+
+    def eventFilter(self, obj, event):
+        if obj is self.table.viewport() and event.type() == QEvent.Type.Resize:
+            self._absorb_extra_width()
+        return super().eventFilter(obj, event)
 
     def _fit_column(self, column, texts, max_width):
         metrics = self.table.fontMetrics()
