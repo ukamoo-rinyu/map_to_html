@@ -17,6 +17,7 @@ from qgis.core import (
     QgsUnitTypes, QgsMessageLog, Qgis,
     QgsCoordinateTransform, QgsCoordinateReferenceSystem,
 )
+from qgis.PyQt.QtCore import QCoreApplication
 
 
 def _log_extract_warning(context, exc):
@@ -610,9 +611,10 @@ def _extract_fill_pattern(symbol_layer, opacity_scale, warnings, layer_name):
 
     if class_name in ('QgsPointPatternFillSymbolLayer', 'QgsSVGFillSymbolLayer',
                       'QgsRasterFillSymbolLayer', 'QgsRandomMarkerFillSymbolLayer'):
-        warnings.append(
+        warnings.append(QCoreApplication.translate(
+            'StyleExtractor',
             '「{0}」の塗りつぶし（{1}）はHTMLに変換できないため、'
-            'べた塗りで出力しました。'.format(layer_name, class_name)
+            'べた塗りで出力しました。').format(layer_name, class_name)
         )
         return None
 
